@@ -4,12 +4,15 @@ import { z } from "zod";
  * Server-side configuration. Never import this from a client component — it
  * reads secrets.
  *
- * Validation is strict in production and forgiving in development, so a fresh
- * clone runs with no .env file at all but a misconfigured container fails
- * loudly at startup instead of halfway through sending an email.
+ * Validation is deliberately lazy. `next build` evaluates every module with
+ * NODE_ENV=production while tracing routes, so validating at import time would
+ * demand a real SESSION_SECRET during the image build and bake it into the
+ * layer. Configuration belongs to the running container, not to the image.
+ *
+ * Failing fast is still wanted, just at the right moment: instrumentation.ts
+ * calls getEnv() when the server boots, so a misconfigured container dies on
+ * startup rather than on somebody's first login.
  */
-
-const isProduction = process.env.NODE_ENV === "production";
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -21,9 +24,7 @@ const schema = z.object({
   DATA_DIR: z.string().min(1).default("./data"),
 
   /** Signs session cookies. Rotating it logs everyone out. */
-  SESSION_SECRET: isProduction
-    ? z.string().min(32, "SESSION_SECRET must be at least 32 characters")
-    : z.string().min(32).default("development-secret-not-for-production-use"),
+  SESSION_SECRET: z.string().min(32, "must be at least 32 characters").optional(),
 
   SMTP_HOST: z.string().min(1).optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
@@ -41,7 +42,13 @@ const schema = z.object({
   TZ: z.string().min(1).default("Australia/Sydney"),
 });
 
-function load() {
+export type Env = z.infer<typeof schema> & { SESSION_SECRET: string };
+
+const DEV_SECRET = "development-secret-not-for-production-use";
+
+let cached: Env | undefined;
+
+function load(): Env {
   const parsed = schema.safeParse(process.env);
 
   if (!parsed.success) {
@@ -51,10 +58,24 @@ function load() {
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
 
-  return parsed.data;
+  const value = parsed.data;
+
+  if (value.NODE_ENV === "production" && !value.SESSION_SECRET) {
+    throw new Error(
+      "SESSION_SECRET is required in production.\n" +
+        "Generate one with:  openssl rand -base64 48",
+    );
+  }
+
+  return { ...value, SESSION_SECRET: value.SESSION_SECRET ?? DEV_SECRET };
 }
 
-export const env = load();
+export function getEnv(): Env {
+  if (!cached) cached = load();
+  return cached;
+}
 
 /** Email is optional — without SMTP configured the app still works, silently. */
-export const mailEnabled = Boolean(env.SMTP_HOST);
+export function isMailEnabled(): boolean {
+  return Boolean(getEnv().SMTP_HOST);
+}

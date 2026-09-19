@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Semantic tokens only. Components never reach for a raw colour — they ask for
+ * `surface` or `danger`, so the dark palette below is the only place the two
+ * themes can diverge.
+ *
+ * The neutrals are warm rather than blue-grey, and the accent is a deep teal
+ * kept clear of the green/amber/red used for bill status, so "this is a
+ * button" never reads as "this is settled".
+ */
+
+:root {
+  --paper: #faf9f7;
+  --surface: #ffffff;
+  --surface-sunken: #f4f2ee;
+  --line: #e4e0d9;
+  --line-strong: #d1ccc2;
+
+  --ink: #1a1815;
+  --ink-muted: #57514a;
+  --ink-subtle: #8a8279;
+
+  --accent: #15504b;
+  --accent-hover: #0f403c;
+  --accent-ink: #ffffff;
+  --accent-soft: #e4eeec;
+
+  --ok: #2f6f4f;
+  --ok-soft: #e3efe8;
+  --warn: #8a5a0f;
+  --warn-soft: #f6eeda;
+  --danger: #a33127;
+  --danger-soft: #f7e5e2;
+
+  --focus: #15504b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --paper: #131210;
+    --surface: #1b1916;
+    --surface-sunken: #23201b;
+    --line: #2e2a24;
+    --line-strong: #413b33;
+
+    --ink: #f2efe9;
+    --ink-muted: #b6afa4;
+    --ink-subtle: #847c71;
+
+    --accent: #4fb3a3;
+    --accent-hover: #67c4b5;
+    --accent-ink: #0c1f1d;
+    --accent-soft: #16302d;
+
+    --ok: #6bbf8e;
+    --ok-soft: #16281f;
+    --warn: #d6a445;
+    --warn-soft: #2a2317;
+    --danger: #e3705f;
+    --danger-soft: #2e1b18;
+
+    --focus: #4fb3a3;
+  }
+}
+
+.dark {
+  --paper: #131210;
+  --surface: #1b1916;
+  --surface-sunken: #23201b;
+  --line: #2e2a24;
+  --line-strong: #413b33;
+
+  --ink: #f2efe9;
+  --ink-muted: #b6afa4;
+  --ink-subtle: #847c71;
+
+  --accent: #4fb3a3;
+  --accent-hover: #67c4b5;
+  --accent-ink: #0c1f1d;
+  --accent-soft: #16302d;
+
+  --ok: #6bbf8e;
+  --ok-soft: #16281f;
+  --warn: #d6a445;
+  --warn-soft: #2a2317;
+  --danger: #e3705f;
+  --danger-soft: #2e1b18;
+
+  --focus: #4fb3a3;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* A deliberate scale rather than arbitrary sizes picked per component. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+}
+
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Money must never shift width as digits change — a column of amounts that
+   * jitters while a total updates looks broken. Applied to the element, not a
+   * utility class, so it cannot be forgotten on a new component.
+   */
+  [data-money] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /* Honour the OS setting for people who get motion sick. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
