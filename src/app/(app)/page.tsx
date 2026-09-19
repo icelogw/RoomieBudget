@@ -156,6 +156,19 @@ export default async function BillsPage() {
         </ul>
       )}
 
+      {bills.length > 0 && (
+        <p className="mt-4 text-xs text-ink-subtle">
+          <a
+            href="/api/export/bills"
+            className="text-accent underline underline-offset-4"
+            download
+          >
+            Download as CSV
+          </a>{" "}
+          — every bill and share, for a spreadsheet or tax time.
+        </p>
+      )}
+
       <section className="mt-8 overflow-hidden rounded-lg border border-line bg-surface">
         <h2 className="border-b border-line bg-surface-sunken px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-ink-subtle">
           Recurring
