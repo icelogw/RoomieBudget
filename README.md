@@ -38,6 +38,9 @@ Then open the app, create the first account, and invite your housemates from
 The first account created becomes the admin. Once anyone exists, the setup page
 closes permanently, so it cannot be used to mint a second admin later.
 
+Signing in lasts thirty days, counted from when you signed in rather than from
+when you last used it, so everyone signs in again about once a month.
+
 ## Configuration
 
 Everything is environment variables. Only `SESSION_SECRET` is required.

@@ -4,11 +4,16 @@ import { eq, lt } from "drizzle-orm";
 import type { Db } from "@/db/connection";
 import { sessions, users } from "@/db/schema";
 
-/** Thirty days. Long enough that a housemate is not logged out every week. */
+/**
+ * Thirty days from signing in, and it does not move.
+ *
+ * Sliding it would mean writing a new cookie, and the only place that reads a
+ * session is a server component, which cannot set one during render. A
+ * database-side extension on its own achieves nothing: the browser would still
+ * drop the cookie on the original date and the longer row would never be
+ * consulted again.
+ */
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-
-/** Slide the expiry forward once a session is more than half used up. */
-const REFRESH_AFTER_MS = SESSION_TTL_MS / 2;
 
 /** Avoid a database write on every single page view. */
 const LAST_SEEN_THROTTLE_MS = 60 * 60 * 1000;
@@ -52,7 +57,8 @@ export type AuthenticatedUser = typeof users.$inferSelect;
  * Resolve a cookie token to the user it belongs to, or null.
  *
  * Expired sessions are deleted on sight rather than merely rejected, so the
- * table does not grow forever on a long-running install.
+ * table does not grow forever on a long-running install. The expiry itself is
+ * never extended; see SESSION_TTL_MS.
  */
 export function validateSessionToken(
   db: Db,
@@ -83,15 +89,9 @@ export function validateSessionToken(
     return null;
   }
 
-  const remaining = row.session.expiresAt.getTime() - now;
   const staleSince = now - row.session.lastSeenAt.getTime();
 
-  if (remaining < REFRESH_AFTER_MS) {
-    db.update(sessions)
-      .set({ expiresAt: new Date(now + SESSION_TTL_MS), lastSeenAt: new Date(now) })
-      .where(eq(sessions.id, sessionId))
-      .run();
-  } else if (staleSince > LAST_SEEN_THROTTLE_MS) {
+  if (staleSince > LAST_SEEN_THROTTLE_MS) {
     db.update(sessions)
       .set({ lastSeenAt: new Date(now) })
       .where(eq(sessions.id, sessionId))

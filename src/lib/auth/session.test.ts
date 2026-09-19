@@ -72,7 +72,22 @@ describe("validateSessionToken", () => {
     expect(db.select().from(sessions).all()).toHaveLength(0);
   });
 
-  it("slides the expiry forward once a session is half used", () => {
+  it("never extends the expiry, however much the session is used", () => {
+    /**
+     * A session lasts a fixed thirty days from signing in. Extending it in the
+     * database alone would be theatre: nothing can rewrite the cookie during a
+     * server render, so the browser drops it on the original date and the
+     * longer row is never consulted again.
+     */
+    const { token } = createSession(db, userId);
+    const issued = db.select().from(sessions).all()[0].expiresAt.getTime();
+
+    for (let i = 0; i < 5; i++) validateSessionToken(db, token);
+
+    expect(db.select().from(sessions).all()[0].expiresAt.getTime()).toBe(issued);
+  });
+
+  it("does not revive a session that is nearly spent", () => {
     const { token } = createSession(db, userId);
     const nearlyExpired = new Date(Date.now() + SESSION_TTL_MS / 4);
     db.update(sessions)
@@ -82,17 +97,9 @@ describe("validateSessionToken", () => {
 
     validateSessionToken(db, token);
 
-    const [row] = db.select().from(sessions).all();
-    expect(row.expiresAt.getTime()).toBeGreaterThan(nearlyExpired.getTime());
-  });
-
-  it("leaves a young session's expiry alone", () => {
-    const { token } = createSession(db, userId);
-    const before = db.select().from(sessions).all()[0].expiresAt.getTime();
-
-    validateSessionToken(db, token);
-
-    expect(db.select().from(sessions).all()[0].expiresAt.getTime()).toBe(before);
+    expect(db.select().from(sessions).all()[0].expiresAt.getTime()).toBe(
+      nearlyExpired.getTime(),
+    );
   });
 });
 
