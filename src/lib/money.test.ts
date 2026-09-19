@@ -103,6 +103,43 @@ describe("splitByWeights", () => {
   });
 });
 
+describe("weights that share a common factor", () => {
+  /**
+   * Weights are reduced before being multiplied by the total, so a split
+   * derived from hand-entered cents cannot push the product towards the safe
+   * integer range. The allocation must come out identical either way — these
+   * pin that, since the reduction happens on a path the rest of the suite
+   * exercises only incidentally.
+   */
+  it("allocates the same however the weights are scaled", () => {
+    for (const total of [10_000, 10_001, 24_755, 7, 999_983]) {
+      const plain = splitByWeights(total, [2, 1]);
+
+      expect(splitByWeights(total, [20, 10]), `${total}`).toEqual(plain);
+      expect(splitByWeights(total, [2000, 1000]), `${total}`).toEqual(plain);
+      expect(splitByWeights(total, [493_826, 246_913]), `${total}`).toEqual(plain);
+    }
+  });
+
+  it("keeps the odd cent with the same person", () => {
+    // The tie-break is by position, and reducing must not disturb it.
+    expect(splitByWeights(10, [1, 1, 1])).toEqual(splitByWeights(10, [7, 7, 7]));
+  });
+
+  it("copes with weights large enough to matter", () => {
+    // Cents-derived weights on a large bill: the product would be near the
+    // top of the safe range without reduction.
+    const shares = splitByWeights(100_000_00, [500_000_00, 500_000_00]);
+
+    expect(shares.reduce((a, b) => a + b, 0)).toBe(100_000_00);
+    expect(shares).toEqual([50_000_00, 50_000_00]);
+  });
+
+  it("leaves a zero weight at zero after reducing", () => {
+    expect(splitByWeights(999, [0, 4])).toEqual(splitByWeights(999, [0, 1]));
+  });
+});
+
 describe("assertSharesCoverTotal", () => {
   it("accepts an exact cover", () => {
     expect(() => assertSharesCoverTotal([2500, 7500], 10000)).not.toThrow();

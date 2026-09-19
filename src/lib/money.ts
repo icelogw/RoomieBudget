@@ -57,6 +57,16 @@ export function formatAud(cents: Cents): string {
   return `${sign}$${dollars}.${String(abs % 100).padStart(2, "0")}`;
 }
 
+function greatestCommonDivisor(a: number, b: number): number {
+  while (b !== 0) [a, b] = [b, a % b];
+  return a;
+}
+
+function reduceWeights(weights: number[]): number[] {
+  const g = weights.reduce(greatestCommonDivisor, 0);
+  return g > 1 ? weights.map((w) => w / g) : weights;
+}
+
 /**
  * Split `total` across integer `weights` using the largest-remainder method.
  *
@@ -75,16 +85,30 @@ export function splitByWeights(total: Cents, weights: number[]): Cents[] {
     throw new MoneyError("Weights must be non-negative integers");
   }
 
-  const divisor = weights.reduce((a, b) => a + b, 0);
-  if (divisor === 0) throw new MoneyError("Weights must not all be zero");
+  if (weights.reduce((a, b) => a + b, 0) === 0) {
+    throw new MoneyError("Weights must not all be zero");
+  }
+
+  // Reduce by the greatest common divisor before multiplying. Weights are
+  // usually 1 or a percentage in basis points, but a split derived from
+  // hand-entered cents can be large enough that magnitude * w approaches the
+  // safe integer range, and this removes the question rather than arguing
+  // about whether it is reachable.
+  //
+  // The allocation is unaffected. Dividing every weight by g divides the
+  // divisor by g too, so each floor is unchanged, and every remainder is
+  // divisible by g — so they scale together and their order, ties included,
+  // is exactly the same.
+  const reduced = reduceWeights(weights);
+  const divisor = reduced.reduce((a, b) => a + b, 0);
 
   const negative = total < 0;
   const magnitude = Math.abs(total);
 
-  const shares = weights.map((w) => Math.floor((magnitude * w) / divisor));
+  const shares = reduced.map((w) => Math.floor((magnitude * w) / divisor));
   let leftover = magnitude - shares.reduce((a, b) => a + b, 0);
 
-  const byRemainder = weights
+  const byRemainder = reduced
     .map((w, index) => ({ index, remainder: (magnitude * w) % divisor }))
     .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
 
