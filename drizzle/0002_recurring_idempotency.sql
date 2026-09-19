@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `bills_series_issue_unique` ON `bills` (`series_id`,`issued_on`);

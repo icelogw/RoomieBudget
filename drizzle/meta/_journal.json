@@ -15,6 +15,20 @@
       "when": 1789788746047,
       "tag": "0001_add_paid_by",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789789188124,
+      "tag": "0002_recurring_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1789789256771,
+      "tag": "0003_series_payer",
+      "breakpoints": true
     }
   ]
 }

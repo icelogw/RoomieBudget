@@ -38,6 +38,9 @@ export type BillDetail = {
   /** Who fronted the money. Everyone else on the bill owes them. */
   paidBy: string | null;
   paidByName: string | null;
+  /** Issued by a series whose amount varies, and still waiting for a figure. */
+  isDraft: boolean;
+  seriesId: string | null;
   createdAt: Date;
   voidedAt: Date | null;
   voidReason: string | null;
@@ -57,6 +60,8 @@ export type CreateBillInput = {
   issuedOn: string;
   dueOn?: string | null;
   notes?: string | null;
+  /** Set when this bill was issued by a recurring series. */
+  seriesId?: string | null;
   split: Split;
 };
 
@@ -98,6 +103,7 @@ export function createBill(db: Db, input: CreateBillInput): string {
         dueOn: input.dueOn ?? null,
         createdBy: input.createdBy,
         paidBy,
+        seriesId: input.seriesId ?? null,
       })
       .run();
 
@@ -199,6 +205,8 @@ function toDetail(
     createdByName: row.createdByName,
     paidBy: row.paidBy,
     paidByName: row.paidByName,
+    isDraft: row.isDraft,
+    seriesId: row.seriesId,
     createdAt: row.createdAt,
     voidedAt: row.voidedAt,
     voidReason: row.voidReason,

@@ -143,6 +143,56 @@ describe("split by percent", () => {
   });
 });
 
+describe("split by weights", () => {
+  it("divides in proportion", () => {
+    const split: Split = {
+      mode: "weights",
+      entries: [
+        { userId: ALICE, weight: 2 },
+        { userId: BOB, weight: 1 },
+      ],
+    };
+    expect(computeShares(9000, split)).toEqual([
+      { userId: ALICE, amountCents: 6000 },
+      { userId: BOB, amountCents: 3000 },
+    ]);
+  });
+
+  it("reconciles when the weights do not divide evenly", () => {
+    const split: Split = {
+      mode: "weights",
+      entries: [
+        { userId: ALICE, weight: 1 },
+        { userId: BOB, weight: 1 },
+        { userId: CHARLIE, weight: 1 },
+      ],
+    };
+    expect(sum(computeShares(10_001, split))).toBe(10_001);
+  });
+
+  it("refuses weights that are all zero", () => {
+    const split: Split = {
+      mode: "weights",
+      entries: [
+        { userId: ALICE, weight: 0 },
+        { userId: BOB, weight: 0 },
+      ],
+    };
+    expect(() => computeShares(1000, split)).toThrow(/above zero/);
+  });
+
+  it("refuses fractional weights", () => {
+    const split: Split = {
+      mode: "weights",
+      entries: [
+        { userId: ALICE, weight: 1.5 },
+        { userId: BOB, weight: 1 },
+      ],
+    };
+    expect(() => computeShares(1000, split)).toThrow(/whole number/);
+  });
+});
+
 describe("guards on the total", () => {
   it("refuses zero and negative bills", () => {
     expect(() => computeShares(0, { mode: "single", userId: ALICE })).toThrow(MoneyError);

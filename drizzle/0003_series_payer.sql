@@ -1,0 +1,1 @@
+ALTER TABLE `recurring_series` ADD `paid_by` text REFERENCES users(id);

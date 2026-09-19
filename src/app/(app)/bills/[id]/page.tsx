@@ -13,6 +13,7 @@ import { formatAud } from "@/lib/money";
 import { formatPayId } from "@/lib/payid";
 import { getBill } from "@/server/bills";
 import { ShareRow } from "./settle-controls";
+import { FinaliseForm } from "./finalise-form";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,17 @@ export default async function BillPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
+      {bill.isDraft && (
+        <section className="mb-5 rounded-lg border border-warn/30 bg-warn-soft p-4">
+          <h2 className="text-sm font-semibold text-warn">This bill needs an amount</h2>
+          <p className="mb-4 mt-1 text-sm text-ink-muted">
+            It came from a recurring bill whose amount changes each time, so nobody owes
+            anything until the figure is filled in.
+          </p>
+          <FinaliseForm billId={bill.id} />
+        </section>
+      )}
+
       <section className="rounded-lg border border-line bg-surface p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
@@ -123,6 +135,11 @@ export default async function BillPage({ params }: { params: Promise<{ id: strin
           Who owes what
         </h2>
         <ul>
+          {bill.shares.length === 0 && (
+            <li className="px-4 py-3 text-sm text-ink-subtle">
+              Nothing split yet — set the amount above.
+            </li>
+          )}
           {bill.shares.map((share) => (
             <ShareRow
               key={share.id}

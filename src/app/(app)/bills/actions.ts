@@ -11,6 +11,7 @@ import { fieldErrorsFrom, type FormState } from "@/lib/forms";
 import { MoneyError, parseAmount } from "@/lib/money";
 import { parsePercent, type Split } from "@/lib/split";
 import { createBill, setShareSettled, voidBill } from "@/server/bills";
+import { finaliseDraftBill } from "@/server/recurring";
 
 export type BillFormState = FormState & { notice?: string };
 
@@ -171,4 +172,28 @@ export async function voidBillAction(
   revalidatePath("/");
   revalidatePath("/balances");
   redirect("/");
+}
+
+export async function finaliseBill(
+  _previous: BillFormState,
+  formData: FormData,
+): Promise<BillFormState> {
+  const user = await requireUser();
+
+  const billId = String(formData.get("billId") ?? "");
+
+  let totalCents: number;
+  try {
+    totalCents = parseAmount(String(formData.get("total") ?? ""));
+  } catch {
+    return { fieldErrors: { total: "Enter an amount, like 124.50" } };
+  }
+
+  const result = finaliseDraftBill(getDb(), { billId, totalCents, actorId: user.id });
+  if (!result.ok) return { message: result.reason };
+
+  revalidatePath("/");
+  revalidatePath("/balances");
+  revalidatePath(`/bills/${billId}`);
+  return { notice: "Amount set and split." };
 }

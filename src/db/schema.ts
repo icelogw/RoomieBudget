@@ -1,4 +1,11 @@
-import { index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  sqliteTable,
+  text,
+  unique,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /**
  * Two conventions run through this schema.
@@ -133,6 +140,11 @@ export const recurringSeries = sqliteTable(
     createdBy: text("created_by")
       .notNull()
       .references(() => users.id),
+
+    // Who fronts the money each time this series issues a bill. Usually the
+    // person who set it up, but rent might come out of the other account.
+    paidBy: text("paid_by").references(() => users.id),
+
     ...timestamps,
   },
   (t) => [index("recurring_next_issue_idx").on(t.isActive, t.nextIssueOn)],
@@ -179,6 +191,12 @@ export const bills = sqliteTable(
     index("bills_due_idx").on(t.dueOn),
     index("bills_issued_idx").on(t.issuedOn),
     index("bills_series_idx").on(t.seriesId),
+
+    // One bill per series per issue date, enforced by the database rather
+    // than by the generator remembering to check. SQLite treats NULLs as
+    // distinct in a unique index, so manually entered bills — which have no
+    // series — are unaffected.
+    uniqueIndex("bills_series_issue_unique").on(t.seriesId, t.issuedOn),
   ],
 );
 

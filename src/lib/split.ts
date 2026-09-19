@@ -15,6 +15,7 @@ export type Split =
   | { mode: "even"; userIds: string[] }
   | { mode: "amount"; entries: Array<{ userId: string; amountCents: Cents }> }
   | { mode: "percent"; entries: Array<{ userId: string; basisPoints: number }> }
+  | { mode: "weights"; entries: Array<{ userId: string; weight: number }> }
   | { mode: "single"; userId: string };
 
 export type Share = { userId: string; amountCents: Cents };
@@ -76,6 +77,27 @@ export function computeShares(totalCents: Cents, split: Split): Share[] {
       );
 
       return split.entries.map((e) => ({ userId: e.userId, amountCents: e.amountCents }));
+    }
+
+    case "weights": {
+      // Proportional shares that are not percentages: two parts to one, or a
+      // rent split by room size. Same largest-remainder allocation.
+      assertNoDuplicates(split.entries.map((e) => e.userId));
+      if (split.entries.length === 0) {
+        throw new MoneyError("Choose at least one person to split this between");
+      }
+      if (split.entries.some((e) => !Number.isInteger(e.weight) || e.weight < 0)) {
+        throw new MoneyError("Every share must be a whole number, zero or more");
+      }
+      if (split.entries.reduce((acc, e) => acc + e.weight, 0) === 0) {
+        throw new MoneyError("At least one person must have a share above zero");
+      }
+
+      const amounts = splitByWeights(
+        totalCents,
+        split.entries.map((e) => e.weight),
+      );
+      return split.entries.map((e, i) => ({ userId: e.userId, amountCents: amounts[i] }));
     }
 
     case "percent": {
