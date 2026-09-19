@@ -67,6 +67,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          # A release may already exist: publishing from the web interface
+          # creates the tag and the release together, and this workflow fires
+          # on the tag. Creating it again would fail a release that is
+          # perfectly good, so an existing one is left alone.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — checks passed against it."
+            exit 0
+          fi
+
           message=$(git tag -l --format='%(contents)' "$TAG" | tr -d '[:space:]')
 
           if [ "$(git cat-file -t "$TAG")" = "tag" ] && [ -n "$message" ]; then
