@@ -25,9 +25,10 @@ export async function GET() {
       builtAt: BUILT_AT || undefined,
     });
   } catch (error) {
-    return Response.json(
-      { status: "error", detail: error instanceof Error ? error.message : "unknown" },
-      { status: 503 },
-    );
+    // Nothing about why goes back: this answers an unauthenticated caller, and
+    // a SQLite failure names the path it could not open. The detail an
+    // operator needs is in the log, which the deployment notes point at.
+    console.error("Health check failed:", error);
+    return Response.json({ status: "error" }, { status: 503 });
   }
 }

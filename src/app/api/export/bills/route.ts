@@ -1,7 +1,7 @@
 import { getDb } from "@/db";
 import { requireUser } from "@/lib/auth/current-user";
 import { toCsv, withBom } from "@/lib/csv";
-import { formatCalendarDate, formatTimestamp, todayIso } from "@/lib/dates";
+import { formatTimestamp, todayIso } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { listBills } from "@/server/bills";
 
@@ -15,6 +15,12 @@ export const dynamic = "force-dynamic";
  * Amounts are written as plain decimal numbers with no currency symbol or
  * thousands separator, because "$1,234.56" imports as text and cannot be
  * summed. The currency has its own column instead.
+ *
+ * Dates go out as YYYY-MM-DD rather than the DD/MM/YYYY the interface uses.
+ * A spreadsheet under a US locale reads 03/10/2026 as 3 October or 10 March
+ * depending on nothing the file can control, and being wrong by seven months
+ * without complaining is worse than looking unfamiliar. The stored form is
+ * already YYYY-MM-DD, so this writes the column through unchanged.
  */
 export async function GET() {
   // Authorisation here as everywhere else: a route handler is as reachable as
@@ -25,8 +31,8 @@ export async function GET() {
 
   const rows = bills.flatMap((bill) =>
     bill.shares.map((share) => [
-      formatCalendarDate(bill.issuedOn),
-      bill.dueOn ? formatCalendarDate(bill.dueOn) : null,
+      bill.issuedOn,
+      bill.dueOn,
       bill.description,
       bill.category,
       "AUD",
