@@ -45,7 +45,7 @@ total. Allocation order is stable so the same bill splits the same way twice.
 ## Phases
 
 - [ ] 1. Scaffold, config, Tailwind, base layout
-- [ ] 2. Schema and migrations
+- [x] 2. Schema and migrations
 - [x] 3. Money core + split algorithm, with tests
 - [ ] 4. Auth: argon2id, sessions, invites, first-run admin setup
 - [ ] 5. Bills: create, split, view, settle
