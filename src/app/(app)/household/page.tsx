@@ -7,7 +7,9 @@ import { PageHeader } from "@/components/app-shell";
 import { Callout, Disclosure } from "@/components/ui";
 import { requireUser } from "@/lib/auth/current-user";
 import { getEnv, isMailEnabled } from "@/lib/env";
+import { describeVersion, BUILT_AT } from "@/lib/version";
 import { householdName, listCategories } from "@/server/household";
+import { checkForUpdate } from "@/server/updates";
 import { formatCalendarDate } from "@/lib/dates";
 import { InviteForm } from "./invite-panel";
 import { MemberRow, PendingInviteRow } from "./household-rows";
@@ -16,6 +18,7 @@ import {
   CategoryRow,
   HouseholdNameForm,
   TestEmailForm,
+  UpdateNotice,
 } from "./settings-forms";
 
 /** Relays that swallow mail rather than delivering it. */
@@ -37,6 +40,10 @@ export default async function HouseholdPage() {
 
   const members = await db.select().from(users).orderBy(asc(users.name));
   const categories = isAdmin ? listCategories(db) : [];
+
+  // Cached for hours inside checkForUpdate, so opening this page repeatedly
+  // does not hammer GitHub.
+  const updateStatus = isAdmin ? await checkForUpdate() : null;
 
   // Only admins ever see pending invites — the email addresses of people who
   // have not joined yet are not everyone's business.
@@ -172,6 +179,17 @@ export default async function HouseholdPage() {
                       invites all still work — invite links are shown on screen instead. Set
                       SMTP_HOST to turn email on.
                     </p>
+                  )}
+                </div>
+
+                <div className="border-t border-line pt-5">
+                  <h3 className="mb-3 text-sm font-semibold text-ink">Version</h3>
+                  {updateStatus && (
+                    <UpdateNotice
+                      status={updateStatus}
+                      version={describeVersion()}
+                      builtAt={BUILT_AT}
+                    />
                   )}
                 </div>
               </div>

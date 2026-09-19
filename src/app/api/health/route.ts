@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
+import { BUILT_AT, GIT_SHA, VERSION } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,15 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     getDb().get(sql`select 1`);
-    return Response.json({ status: "ok" });
+
+    // The version is here as well as in the interface so a deployment can be
+    // checked with curl, without signing in.
+    return Response.json({
+      status: "ok",
+      version: VERSION,
+      commit: GIT_SHA || undefined,
+      builtAt: BUILT_AT || undefined,
+    });
   } catch (error) {
     return Response.json(
       { status: "error", detail: error instanceof Error ? error.message : "unknown" },

@@ -40,6 +40,21 @@ const schema = z.object({
 
   /** Household timezone. The container's TZ, used for calendar-date maths. */
   TZ: z.string().min(1).default("Australia/Sydney"),
+
+  /**
+   * Ask GitHub, anonymously, whether a newer release exists. Off makes the
+   * app contact nothing outside the house at all.
+   */
+  UPDATE_CHECK: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+
+  /** Where to look for releases. Only useful if you forked it. */
+  UPDATE_REPO: z
+    .string()
+    .regex(/^[\w.-]+\/[\w.-]+$/, "Must look like owner/repo")
+    .default("icelogw/RoomieBudget"),
 });
 
 export type Env = z.infer<typeof schema> & { SESSION_SECRET: string };

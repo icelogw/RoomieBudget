@@ -53,6 +53,8 @@ Everything is environment variables. Only `SESSION_SECRET` is required.
 | `SMTP_SECURE` | `false` | `true` for implicit TLS, usually port 465 |
 | `SMTP_USER` / `SMTP_PASSWORD` | — | Omit both for a relay that does not authenticate |
 | `MAIL_FROM` | `no-reply@localhost` | The address notifications come from. Replies go nowhere by design |
+| `UPDATE_CHECK` | `true` | Asks GitHub anonymously whether a newer release exists. `false` makes the app contact nothing outside the house |
+| `UPDATE_REPO` | `icelogw/RoomieBudget` | Where to look for releases. Only useful if you forked it |
 
 After starting, check email works: **Household → House settings → Email → Send
 a test**. A failure reports the mail server's own error, because
@@ -73,6 +75,12 @@ docker exec roomiebudget sqlite3 /data/roomiebudget.sqlite ".backup '/data/backu
 Restoring is putting the file back and restarting.
 
 ## Upgrading
+
+The running version is shown under **Household → House settings → Version**,
+along with a note if a newer release exists. The check is anonymous and
+read-only, needs no token, and only works while the repository is public — a
+private one answers 404, which is reported as "cannot check" rather than
+"up to date".
 
 Pull the new image and restart. Migrations run automatically at startup, so
 there is no separate step:

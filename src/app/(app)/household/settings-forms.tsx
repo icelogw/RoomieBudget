@@ -199,3 +199,69 @@ export function TestEmailForm({ to }: { to: string }) {
     </div>
   );
 }
+
+export function UpdateNotice({
+  status,
+  version,
+  builtAt,
+}: {
+  status:
+    | { state: "disabled" }
+    | { state: "development" }
+    | { state: "current"; running: string }
+    | { state: "available"; running: string; latest: string; url: string }
+    | { state: "unknown"; reason: string };
+  version: string;
+  builtAt: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+        <dt className="text-ink-subtle">Running</dt>
+        <dd className="truncate text-ink-muted">{version}</dd>
+        {builtAt && (
+          <>
+            <dt className="text-ink-subtle">Built</dt>
+            <dd className="truncate text-ink-muted">{builtAt}</dd>
+          </>
+        )}
+      </dl>
+
+      {status.state === "available" && (
+        <Callout tone="warn">
+          <span className="font-medium">{status.latest} is available.</span>{" "}
+          <a
+            href={status.url}
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-4"
+          >
+            See what changed
+          </a>
+          , then pull the new image and restart.
+        </Callout>
+      )}
+
+      {status.state === "current" && (
+        <p className="text-xs text-ok">This is the newest release.</p>
+      )}
+
+      {status.state === "development" && (
+        <p className="text-xs text-ink-subtle">
+          Built from source rather than from a release, so there is nothing to compare
+          against.
+        </p>
+      )}
+
+      {status.state === "disabled" && (
+        <p className="text-xs text-ink-subtle">
+          Update checking is off. The app contacts nothing outside the house.
+        </p>
+      )}
+
+      {status.state === "unknown" && (
+        <p className="text-xs text-ink-subtle">Could not check: {status.reason}</p>
+      )}
+    </div>
+  );
+}

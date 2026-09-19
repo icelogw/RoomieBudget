@@ -42,6 +42,18 @@ CMD ["npm", "run", "dev"]
 FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Baked in so a running container can say what it is, and so it can tell
+# whether a published release is newer than itself. A build without these
+# reports "dev", which is the honest answer for an image built from a working
+# tree rather than from a tag.
+ARG APP_VERSION=dev
+ARG GIT_SHA=""
+ARG BUILT_AT=""
+ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION \
+    NEXT_PUBLIC_GIT_SHA=$GIT_SHA \
+    NEXT_PUBLIC_BUILT_AT=$BUILT_AT
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
