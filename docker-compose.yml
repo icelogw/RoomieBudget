@@ -1,0 +1,27 @@
+services:
+  roomiebudget:
+    build: .
+    image: roomiebudget:latest
+    container_name: roomiebudget
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # The URL housemates actually open. Used for links in emails, so
+      # localhost will produce links that work for nobody but you.
+      APP_URL: ${APP_URL:-http://localhost:3000}
+
+      # Generate with: openssl rand -base64 48
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+
+      TZ: ${TZ:-Australia/Sydney}
+
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@localhost}
+    volumes:
+      # On TrueNAS point the host side at a dataset so snapshots cover it.
+      - ./data:/data
