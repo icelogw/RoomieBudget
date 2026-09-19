@@ -35,8 +35,15 @@ const schema = z.object({
     .default("false")
     .transform((v) => v === "true"),
 
-  /** The no-reply address bills are sent from. */
-  MAIL_FROM: z.email().default("no-reply@localhost"),
+  /**
+   * The no-reply address bills are sent from.
+   *
+   * The default has a real TLD because it is validated like any other value.
+   * "no-reply@localhost" reads more naturally but z.email() rejects it, and a
+   * default that its own schema refuses is invisible until something passes
+   * the documented value in explicitly — which is exactly what compose does.
+   */
+  MAIL_FROM: z.email().default("no-reply@roomiebudget.local"),
 
   /** Household timezone. The container's TZ, used for calendar-date maths. */
   TZ: z.string().min(1).default("Australia/Sydney"),
@@ -61,10 +68,32 @@ export type Env = z.infer<typeof schema> & { SESSION_SECRET: string };
 
 const DEV_SECRET = "development-secret-not-for-production-use";
 
-let cached: Env | undefined;
+/**
+ * An empty variable means the operator left the line blank, which means they
+ * do not want it — so it has to reach the schema as absent.
+ *
+ * Compose substitutes `${SMTP_HOST:-}` into "" rather than omitting the
+ * variable, so a container started from the documented quickstart receives an
+ * empty string where .env.example implies nothing at all. Without this, every
+ * optional variable with a `.min(1)` or a default rejects a blank line.
+ */
+function blankAsAbsent(source: Record<string, string | undefined>) {
+  const cleaned: Record<string, string> = {};
 
-function load(): Env {
-  const parsed = schema.safeParse(process.env);
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === "string" && value.trim() !== "") cleaned[key] = value;
+  }
+
+  return cleaned;
+}
+
+/**
+ * Validate a configuration source. Exported so the quickstart can be tested
+ * against the exact environment compose produces, without touching
+ * process.env or the cache below.
+ */
+export function parseEnv(source: Record<string, string | undefined>): Env {
+  const parsed = schema.safeParse(blankAsAbsent(source));
 
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -85,8 +114,10 @@ function load(): Env {
   return { ...value, SESSION_SECRET: value.SESSION_SECRET ?? DEV_SECRET };
 }
 
+let cached: Env | undefined;
+
 export function getEnv(): Env {
-  if (!cached) cached = load();
+  if (!cached) cached = parseEnv(process.env);
   return cached;
 }
 

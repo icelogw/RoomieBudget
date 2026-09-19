@@ -57,6 +57,46 @@ jobs:
         with:
           context: .
           push: false
+          load: true
           tags: roomiebudget:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Building an image says nothing about whether it starts. A container
+      # that crash-loops on the documented quickstart passed every other check
+      # here and reached a tagged release, so the quickstart itself is now the
+      # test: only SESSION_SECRET set, exactly as the README says.
+      - name: Boot on the documented quickstart
+        run: |
+          set -euo pipefail
+
+          docker run -d --name ci-boot -p 3000:3000 \
+            -e SESSION_SECRET="$(openssl rand -base64 48)" \
+            roomiebudget:ci
+
+          for attempt in $(seq 1 30); do
+            if ! docker ps --filter name=ci-boot --filter status=running -q | grep -q .; then
+              echo "Container exited before serving a request:"
+              docker logs ci-boot
+              exit 1
+            fi
+
+            if curl -fsS -m 3 http://localhost:3000/api/health > /tmp/health.json 2>/dev/null; then
+              echo "Healthy after ${attempt}s: $(cat /tmp/health.json)"
+              exit 0
+            fi
+
+            sleep 1
+          done
+
+          echo "Never became healthy. Logs:"
+          docker logs ci-boot
+          exit 1
+
+      - name: Container logs
+        if: always()
+        run: docker logs ci-boot 2>&1 | tail -30 || true
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f ci-boot || true

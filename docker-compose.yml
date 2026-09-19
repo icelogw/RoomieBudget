@@ -21,7 +21,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      MAIL_FROM: ${MAIL_FROM:-no-reply@localhost}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@roomiebudget.local}
     volumes:
       # On TrueNAS point the host side at a dataset so snapshots cover it.
       - ./data:/data
