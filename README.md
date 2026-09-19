@@ -68,6 +68,18 @@ After starting, check email works: **Household → House settings → Email → 
 a test**. A failure reports the mail server's own error, because
 "authentication failed" and "connection refused" need different fixes.
 
+## Locked out
+
+No reset-by-email, because mail is optional and a recovery path that needs a
+relay is not one. Set the password from the shell instead:
+
+```sh
+docker exec -it roomiebudget node scripts/set-password.mjs you@example.com
+```
+
+It reactivates the account if it was switched off, ends any sign-in it had, and
+records the change in `audit_log`. Details in [docs/truenas.md](docs/truenas.md).
+
 ## Backing up
 
 The entire database is one file: `roomiebudget.sqlite` in your mounted volume.

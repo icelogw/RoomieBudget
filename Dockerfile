@@ -87,6 +87,10 @@ COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 # bundle, so they must be copied explicitly.
 COPY --from=builder --chown=node:node /app/drizzle ./drizzle
 
+# Operator tools, run with docker exec. Recovering a forgotten password is the
+# one thing that cannot be done from inside a locked-out app.
+COPY --from=builder --chown=node:node /app/scripts/set-password.mjs ./scripts/
+
 # The image's own /data is a fallback for running without a volume. A real
 # deployment mounts over it, and the mount must be writable by uid 1000.
 RUN mkdir -p /data && chown node:node /data

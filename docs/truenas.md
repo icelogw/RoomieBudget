@@ -117,6 +117,27 @@ docker exec roomiebudget sqlite3 /data/roomiebudget.sqlite ".backup '/data/backu
 
 Restoring is stopping the container, putting the file back, and starting it.
 
+## Locked out
+
+There is no reset-by-email flow. Mail is optional here, so a recovery path that
+needed a working relay would not be one, and the setup page closes for good
+once anybody exists. Instead, set the password from the shell:
+
+```sh
+docker exec -it roomiebudget node scripts/set-password.mjs you@example.com
+```
+
+It asks for the new password rather than taking it as an argument, so it does
+not end up in your shell history. Pass it as a second argument if you are
+scripting.
+
+It also switches the account back on if it had been deactivated, ends any
+sign-in that account already had, and records what happened in `audit_log`
+with no actor, since an operator at a shell is nobody in the app.
+
+An unrecognised email prints the accounts that do exist, which saves guessing
+which address you used.
+
 ## Upgrading
 
 ```sh
