@@ -160,6 +160,12 @@ export const bills = sqliteTable(
       .notNull()
       .references(() => users.id),
 
+    // Who actually fronted the money. Everyone else on the bill owes them
+    // their share, which is what makes a netted balance meaningful. Nullable
+    // only because the column was added after the first release; every bill
+    // written since sets it, and older rows were backfilled from created_by.
+    paidBy: text("paid_by").references(() => users.id),
+
     // Bills are voided, never deleted. A financial record that can vanish
     // without trace is not a record, and "who cancelled that?" is a question
     // housemates genuinely ask.

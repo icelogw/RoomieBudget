@@ -104,11 +104,16 @@ export async function addBill(
     return { fieldErrors: { dueOn: "The due date cannot be before the issue date" } };
   }
 
+  // Who fronted the money. Defaults to whoever is entering the bill, which
+  // is nearly always the same person.
+  const paidBy = String(formData.get("paidBy") || user.id);
+
   let billId: string;
   try {
     const split = readSplit(formData, parsed.data.splitMode);
     billId = createBill(getDb(), {
       createdBy: user.id,
+      paidBy,
       description: parsed.data.description,
       category: parsed.data.category || null,
       totalCents,

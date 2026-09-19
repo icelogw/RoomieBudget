@@ -41,6 +41,7 @@ export function BillForm({
   const [state, action] = useActionState(addBill, EMPTY_FORM_STATE as BillFormState);
 
   const [mode, setMode] = useState<Mode>("even");
+  const [paidBy, setPaidBy] = useState(currentUserId);
   const [total, setTotal] = useState("");
   const [selected, setSelected] = useState<string[]>(housemates.map((h) => h.id));
   const [single, setSingle] = useState(currentUserId);
@@ -160,6 +161,29 @@ export function BillForm({
       </section>
 
       <section className="rounded-lg border border-line bg-surface p-4">
+        <label htmlFor="paidBy" className="block text-sm font-medium text-ink">
+          Who paid for this?
+        </label>
+        <select
+          id="paidBy"
+          name="paidBy"
+          value={paidBy}
+          onChange={(e) => setPaidBy(e.target.value)}
+          className="mt-1.5 h-10 w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-ink sm:w-64"
+        >
+          {housemates.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.name}
+              {person.id === currentUserId ? " (you)" : ""}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1.5 text-xs text-ink-subtle">
+          Everyone else owes them their share. Their own share is marked paid straight away.
+        </p>
+      </section>
+
+      <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink">How is it split?</h2>
 
         <input type="hidden" name="splitMode" value={mode} />
@@ -255,8 +279,19 @@ export function BillForm({
             <ul className="divide-y divide-line">
               {preview.shares.map((share) => (
                 <li key={share.userId} className="flex justify-between py-1.5 text-sm">
-                  <span className="text-ink">{nameOf.get(share.userId) ?? "Unknown"}</span>
-                  <span className="font-medium text-ink" data-money>
+                  <span className="text-ink">
+                    {nameOf.get(share.userId) ?? "Unknown"}
+                    {share.userId === paidBy && (
+                      <span className="ml-1.5 text-xs text-ink-subtle">paid this</span>
+                    )}
+                  </span>
+                  <span
+                    className={
+                      "font-medium " +
+                      (share.userId === paidBy ? "text-ink-subtle" : "text-ink")
+                    }
+                    data-money
+                  >
                     {formatAud(share.amountCents)}
                   </span>
                 </li>

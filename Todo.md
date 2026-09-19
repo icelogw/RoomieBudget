@@ -49,7 +49,7 @@ total. Allocation order is stable so the same bill splits the same way twice.
 - [x] 3. Money core + split algorithm, with tests
 - [x] 4. Auth: argon2id, sessions, invites, first-run admin setup
 - [x] 5. Bills: create, split, view, settle
-- [ ] 6. Balances and settle-up
+- [x] 6. Balances and settle-up
 - [ ] 7. Recurring series and the scheduler
 - [ ] 8. Email delivery and reminder jobs
 - [x] 9. Mobile and desktop shells

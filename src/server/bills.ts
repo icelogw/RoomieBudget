@@ -1,10 +1,14 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 
 import type { Db } from "@/db/connection";
 import { auditLog, billShares, bills, users } from "@/db/schema";
 import { newId } from "@/lib/ids";
 import type { Cents } from "@/lib/money";
 import { computeShares, type Split } from "@/lib/split";
+
+// Bills join users twice — once for who entered it, once for who paid.
+const payer = alias(users, "payer");
 
 /**
  * Bill reads and writes. A plain module, not a server action file: these are
@@ -31,6 +35,9 @@ export type BillDetail = {
   dueOn: string | null;
   createdBy: string;
   createdByName: string;
+  /** Who fronted the money. Everyone else on the bill owes them. */
+  paidBy: string | null;
+  paidByName: string | null;
   createdAt: Date;
   voidedAt: Date | null;
   voidReason: string | null;
@@ -42,6 +49,8 @@ export type BillDetail = {
 
 export type CreateBillInput = {
   createdBy: string;
+  /** Who fronted the money. Defaults to whoever entered the bill. */
+  paidBy?: string;
   description: string;
   category?: string | null;
   totalCents: Cents;
@@ -63,6 +72,8 @@ export function createBill(db: Db, input: CreateBillInput): string {
   const shares = computeShares(input.totalCents, input.split);
 
   const billId = newId();
+  const paidBy = input.paidBy ?? input.createdBy;
+  const settledAt = new Date();
 
   db.transaction((tx) => {
     const participantIds = shares.map((s) => s.userId);
@@ -86,6 +97,7 @@ export function createBill(db: Db, input: CreateBillInput): string {
         issuedOn: input.issuedOn,
         dueOn: input.dueOn ?? null,
         createdBy: input.createdBy,
+        paidBy,
       })
       .run();
 
@@ -96,6 +108,11 @@ export function createBill(db: Db, input: CreateBillInput): string {
           billId,
           userId: share.userId,
           amountCents: share.amountCents,
+          // The payer's own share is settled the moment the bill is created:
+          // they already paid it, and leaving it outstanding would show them
+          // owing money to themselves.
+          settledAt: share.userId === paidBy ? settledAt : null,
+          settledBy: share.userId === paidBy ? paidBy : null,
         })),
       )
       .run();
@@ -163,7 +180,7 @@ function loadShares(db: Db, billIds: string[]): Map<string, ShareWithPerson[]> {
 }
 
 function toDetail(
-  row: typeof bills.$inferSelect & { createdByName: string },
+  row: typeof bills.$inferSelect & { createdByName: string; paidByName: string | null },
   shares: ShareWithPerson[],
 ): BillDetail {
   const outstandingCents = shares
@@ -180,6 +197,8 @@ function toDetail(
     dueOn: row.dueOn,
     createdBy: row.createdBy,
     createdByName: row.createdByName,
+    paidBy: row.paidBy,
+    paidByName: row.paidByName,
     createdAt: row.createdAt,
     voidedAt: row.voidedAt,
     voidReason: row.voidReason,
@@ -194,9 +213,11 @@ export function listBills(db: Db): BillDetail[] {
     .select({
       bill: bills,
       createdByName: users.name,
+      paidByName: payer.name,
     })
     .from(bills)
     .innerJoin(users, eq(bills.createdBy, users.id))
+    .leftJoin(payer, eq(bills.paidBy, payer.id))
     .where(isNull(bills.voidedAt))
     // Newest first by issue date, then by creation so same-day bills keep a
     // stable order instead of shuffling between page loads.
@@ -209,22 +230,29 @@ export function listBills(db: Db): BillDetail[] {
   );
 
   return rows.map((r) =>
-    toDetail({ ...r.bill, createdByName: r.createdByName }, shares.get(r.bill.id) ?? []),
+    toDetail(
+      { ...r.bill, createdByName: r.createdByName, paidByName: r.paidByName },
+      shares.get(r.bill.id) ?? [],
+    ),
   );
 }
 
 export function getBill(db: Db, billId: string): BillDetail | null {
   const row = db
-    .select({ bill: bills, createdByName: users.name })
+    .select({ bill: bills, createdByName: users.name, paidByName: payer.name })
     .from(bills)
     .innerJoin(users, eq(bills.createdBy, users.id))
+    .leftJoin(payer, eq(bills.paidBy, payer.id))
     .where(eq(bills.id, billId))
     .get();
 
   if (!row) return null;
 
   const shares = loadShares(db, [billId]).get(billId) ?? [];
-  return toDetail({ ...row.bill, createdByName: row.createdByName }, shares);
+  return toDetail(
+    { ...row.bill, createdByName: row.createdByName, paidByName: row.paidByName },
+    shares,
+  );
 }
 
 /**

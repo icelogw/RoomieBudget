@@ -32,9 +32,10 @@ beforeEach(() => {
     .run();
 });
 
-function newBill(totalCents: number, userIds: string[] = [alice, bob]) {
+function newBill(totalCents: number, userIds: string[] = [alice, bob], paidBy = alice) {
   return createBill(db, {
     createdBy: alice,
+    paidBy,
     description: "Electricity",
     totalCents,
     issuedOn: "2026-09-19",
@@ -50,8 +51,18 @@ describe("createBill", () => {
 
     expect(bill.shares).toHaveLength(3);
     expect(bill.shares.reduce((a, s) => a + s.amountCents, 0)).toBe(24_755);
-    expect(bill.outstandingCents).toBe(24_755);
     expect(bill.isSettled).toBe(false);
+  });
+
+  it("leaves only the non-payers owing anything", () => {
+    const id = newBill(24_755, [alice, bob, charlie]);
+    const bill = getBill(db, id)!;
+
+    // Alice paid, so her own share is settled on creation and the amount
+    // still owed is the bill less her share.
+    const alicesShare = bill.shares.find((s) => s.name === "Alice")!;
+    expect(alicesShare.settledAt).not.toBeNull();
+    expect(bill.outstandingCents).toBe(24_755 - alicesShare.amountCents);
   });
 
   it("writes nothing when the split does not reconcile", () => {
@@ -165,8 +176,10 @@ describe("settleAllForUser", () => {
   });
 
   it("leaves other people alone", () => {
-    newBill(10_000);
-    settleAllForUser(db, { userId: bob, actorId: alice });
+    // Charlie paid, so both Alice and Bob owe a share; settling Bob's must
+    // not touch Alice's.
+    newBill(9000, [alice, bob, charlie], charlie);
+    settleAllForUser(db, { userId: bob, actorId: charlie });
 
     const aliceShare = listBills(db)[0].shares.find((s) => s.name === "Alice")!;
     expect(aliceShare.settledAt).toBeNull();
