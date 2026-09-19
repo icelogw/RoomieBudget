@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
   // This repo does not ship AI tooling files.
   agentRules: false,
 
+  // The dev tools badge defaults to bottom-left, which is exactly where the
+  // sidebar footer and its sign-out button sit. Dev-only, but in the way.
+  devIndicators: { position: "bottom-right" },
+
   poweredByHeader: false,
   reactStrictMode: true,
 };
