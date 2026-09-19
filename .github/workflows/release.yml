@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    name: Verify and publish
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Needed to create the release. Nothing else is granted.
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history, so the generated notes can see what changed since
+          # the previous tag.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # A tag that does not build is worse than no tag: somebody will deploy
+      # it. Everything is verified before the release exists.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: roomiebudget:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The gh CLI is on the runner, so no third-party action is needed to
+      # cut the release — one less thing in the supply chain.
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            --verify-tag
