@@ -174,6 +174,104 @@ describe("generateDueBills", () => {
   });
 });
 
+describe("an occurrence that fails for a real reason", () => {
+  /**
+   * A duplicate is the idempotency index working and the series should move
+   * on. Anything else is a genuine failure, and stepping over it silently
+   * loses that month's bill — nobody is told, and the only trace is a console
+   * line.
+   *
+   * The failure is induced by removing a participant's user row, which makes
+   * createBill reject the occurrence without touching the generator itself.
+   */
+  function breakParticipant() {
+    db.delete(users).where(eq(users.id, bob)).run();
+  }
+
+  function repairParticipant() {
+    db.insert(users)
+      .values({ id: bob, email: "b@example.com", name: "Bob", passwordHash: "x" })
+      .run();
+  }
+
+  it("does not advance past the occurrence it could not issue", () => {
+    series({ frequency: "fortnightly", anchorDate: "2026-09-01" });
+    breakParticipant();
+
+    generateDueBills(db, { today: "2026-09-01" });
+
+    expect(listSeries(db)[0].nextIssueOn).toBe("2026-09-01");
+    expect(listBills(db)).toHaveLength(0);
+  });
+
+  it("issues it on a later run once the cause is cleared", () => {
+    series({ frequency: "fortnightly", anchorDate: "2026-09-01" });
+    breakParticipant();
+    generateDueBills(db, { today: "2026-09-01" });
+
+    repairParticipant();
+    const result = generateDueBills(db, { today: "2026-09-01" });
+
+    expect(result.billsCreated).toBe(1);
+    expect(listBills(db)[0].issuedOn).toBe("2026-09-01");
+    expect(listSeries(db)[0].nextIssueOn).toBe("2026-09-15");
+  });
+
+  it("stops at the failure rather than carrying on past it", () => {
+    // Four occurrences are due; the first cannot be issued, so none of the
+    // later ones may be either — issuing them would leave a hole nobody sees.
+    series({ frequency: "fortnightly", anchorDate: "2026-09-01" });
+    breakParticipant();
+
+    generateDueBills(db, { today: "2026-10-15" });
+
+    expect(listBills(db)).toHaveLength(0);
+    expect(listSeries(db)[0].nextIssueOn).toBe("2026-09-01");
+  });
+
+  it("leaves other series in the same run unaffected", () => {
+    series({ description: "Rent", frequency: "fortnightly", anchorDate: "2026-09-01" });
+    createSeries(db, {
+      createdBy: alice,
+      paidBy: alice,
+      description: "Internet",
+      amountMode: "fixed",
+      totalCents: 8900,
+      frequency: "monthly",
+      anchorDate: "2026-09-01",
+      dueOffsetDays: 7,
+      splitMode: "single",
+      participants: [{ userId: alice, weight: 1 }],
+    });
+
+    breakParticipant();
+    generateDueBills(db, { today: "2026-09-01" });
+
+    // Rent involves the missing participant and fails; Internet does not.
+    expect(listBills(db).map((b) => b.description)).toEqual(["Internet"]);
+  });
+
+  it("retries a draft occurrence too, rather than skipping it", () => {
+    // The draft path had no error handling at all, so a failure there threw
+    // out of the loop and abandoned every remaining series in the tick.
+    series({
+      description: "Electricity",
+      amountMode: "prompt",
+      totalCents: null,
+      frequency: "quarterly",
+      anchorDate: "2026-09-01",
+    });
+
+    const first = generateDueBills(db, { today: "2026-09-01" });
+    expect(first.billsCreated).toBe(1);
+
+    // A repeat finds the existing draft, counts it as dealt with, and moves on.
+    const second = generateDueBills(db, { today: "2026-09-01" });
+    expect(second.billsCreated).toBe(0);
+    expect(listBills(db)).toHaveLength(1);
+  });
+});
+
 describe("pausing and resuming", () => {
   it("does not backfill the gap when resumed", () => {
     const id = series();

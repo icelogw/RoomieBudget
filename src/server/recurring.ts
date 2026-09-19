@@ -266,82 +266,103 @@ export function generateDueBills(
       continue;
     }
 
-    const dates = occurrencesBetween(
-      series.anchorDate,
-      series.frequency,
-      series.nextIssueOn,
-      today,
-      catchUpLimit,
-    );
-
-    let lastIssued: string | null = null;
-
-    for (const issuedOn of dates) {
-      // A series with a variable amount cannot generate a real bill on its
-      // own — a power bill is never the same twice, and guessing would be
-      // worse than asking. Those are handled separately as drafts.
-      if (series.amountMode === "prompt") {
-        const existing = db
-          .select({ id: bills.id })
-          .from(bills)
-          .where(and(eq(bills.seriesId, series.id), eq(bills.issuedOn, issuedOn)))
-          .get();
-
-        if (!existing) {
-          db.insert(bills)
-            .values({
-              id: newId(),
-              description: series.description,
-              category: series.category,
-              totalCents: 0,
-              issuedOn,
-              dueOn: addDays(issuedOn, series.dueOffsetDays),
-              isDraft: true,
-              seriesId: series.id,
-              createdBy: series.createdBy,
-              paidBy: series.paidBy ?? series.createdBy,
-            })
-            .run();
-          billsCreated += 1;
-        } else {
-          skipped += 1;
-        }
-
-        lastIssued = issuedOn;
-        continue;
-      }
-
-      try {
-        createBill(db, {
-          createdBy: series.createdBy,
-          paidBy: series.paidBy ?? series.createdBy,
-          description: series.description,
-          category: series.category,
-          totalCents: series.totalCents!,
-          issuedOn,
-          dueOn: addDays(issuedOn, series.dueOffsetDays),
-          seriesId: series.id,
-          split: seriesSplit(series.splitMode, participants),
-        });
-        billsCreated += 1;
-      } catch (error) {
-        // A duplicate is the unique index doing its job on a repeated run,
-        // and is not a failure. Anything else is, and must not stop the
-        // remaining series from being processed.
-        const message = error instanceof Error ? error.message : "";
-        if (!/UNIQUE/i.test(message)) {
-          console.error(`Recurring series ${series.id} failed on ${issuedOn}:`, error);
-        }
-        skipped += 1;
-      }
-
-      lastIssued = issuedOn;
+    let dates: string[];
+    try {
+      dates = occurrencesBetween(
+        series.anchorDate,
+        series.frequency,
+        series.nextIssueOn,
+        today,
+        catchUpLimit,
+      );
+    } catch (error) {
+      // A series with dates the recurrence rules cannot make sense of must
+      // not take the whole tick down with it.
+      console.error(`Recurring series ${series.id} has unusable dates:`, error);
+      skipped += 1;
+      continue;
     }
 
-    if (lastIssued) {
+    // Only occurrences that were actually dealt with move the series on. An
+    // occurrence that failed for a real reason — a busy database, a
+    // participant that no longer resolves — must be left where it is so the
+    // next run retries it. Stepping over it would silently lose that month's
+    // rent, with nothing but a console line to say so.
+    let lastSettled: string | null = null;
+
+    for (const issuedOn of dates) {
+      let outcome: "issued" | "duplicate" | "failed";
+
+      try {
+        // A series with a variable amount cannot generate a real bill on its
+        // own — a power bill is never the same twice, and guessing would be
+        // worse than asking. Those are handled separately as drafts.
+        if (series.amountMode === "prompt") {
+          const existing = db
+            .select({ id: bills.id })
+            .from(bills)
+            .where(and(eq(bills.seriesId, series.id), eq(bills.issuedOn, issuedOn)))
+            .get();
+
+          if (existing) {
+            outcome = "duplicate";
+          } else {
+            db.insert(bills)
+              .values({
+                id: newId(),
+                description: series.description,
+                category: series.category,
+                totalCents: 0,
+                issuedOn,
+                dueOn: addDays(issuedOn, series.dueOffsetDays),
+                isDraft: true,
+                seriesId: series.id,
+                createdBy: series.createdBy,
+                paidBy: series.paidBy ?? series.createdBy,
+              })
+              .run();
+            outcome = "issued";
+          }
+        } else {
+          createBill(db, {
+            createdBy: series.createdBy,
+            paidBy: series.paidBy ?? series.createdBy,
+            description: series.description,
+            category: series.category,
+            totalCents: series.totalCents!,
+            issuedOn,
+            dueOn: addDays(issuedOn, series.dueOffsetDays),
+            seriesId: series.id,
+            split: seriesSplit(series.splitMode, participants),
+          });
+          outcome = "issued";
+        }
+      } catch (error) {
+        // A duplicate is the unique index doing its job on a repeated run,
+        // and counts as dealt with. Anything else is a real failure.
+        const message = error instanceof Error ? error.message : "";
+        outcome = /UNIQUE/i.test(message) ? "duplicate" : "failed";
+
+        if (outcome === "failed") {
+          console.error(`Recurring series ${series.id} failed on ${issuedOn}:`, error);
+        }
+      }
+
+      if (outcome === "issued") billsCreated += 1;
+      else skipped += 1;
+
+      // Stop this series here rather than carrying on past a gap. The
+      // generator runs every half hour and is safe to repeat, so the next
+      // tick picks up where this one stopped.
+      if (outcome === "failed") break;
+
+      lastSettled = issuedOn;
+    }
+
+    if (lastSettled) {
       db.update(recurringSeries)
         .set({
-          nextIssueOn: nextOccurrenceAfter(series.anchorDate, series.frequency, lastIssued),
+          nextIssueOn: nextOccurrenceAfter(series.anchorDate, series.frequency, lastSettled),
         })
         .where(eq(recurringSeries.id, series.id))
         .run();
