@@ -8,6 +8,23 @@ import { APP_NAME } from "@/lib/app";
  * tracking pixel — it has to look right in Gmail, Outlook and a phone's
  * default client, and a household bill notice does not need decoration.
  *
+ * Two rules drive the odd-looking structure:
+ *
+ * Nothing is styled on <body>. Gmail and several webmail clients discard the
+ * body element entirely and reparent its children, taking any background or
+ * padding with it. The page background lives on a full-width table instead.
+ *
+ * Widths are HTML attributes as well as CSS. Outlook's Word rendering engine
+ * ignores max-width, so a layout that relies on it alone stretches to the full
+ * window there. A fixed `width` attribute on the inner table is what actually
+ * holds the column at 520px.
+ *
+ * Alignment is likewise an attribute beside the CSS, for the same reason.
+ *
+ * Deliberately left as-is: border-radius and margin are only partly supported,
+ * and both degrade harmlessly — square corners and slightly different spacing
+ * in old Outlook is not worth contorting the markup for.
+ *
  * Every message ships a plain-text alternative. Some clients show it, and a
  * message with no text part scores badly with spam filters.
  */
@@ -18,6 +35,9 @@ const SUBTLE = "#8a8279";
 const LINE = "#e4e0d9";
 const PAPER = "#faf9f7";
 const ACCENT = "#15504b";
+
+const FONT =
+  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 export type Button = { label: string; url: string };
 
@@ -39,68 +59,91 @@ export function layout(options: {
   const rows = (options.rows ?? [])
     .map(
       ({ label, value }) => `
-        <tr>
-          <td style="padding:6px 0;color:${MUTED};font-size:14px;">${escapeHtml(label)}</td>
-          <td style="padding:6px 0;color:${INK};font-size:14px;font-weight:500;text-align:right;white-space:nowrap;">${escapeHtml(
-            value,
-          )}</td>
-        </tr>`,
+              <tr>
+                <td align="left" style="padding:6px 0;color:${MUTED};font-size:14px;font-family:${FONT};">${escapeHtml(
+                  label,
+                )}</td>
+                <td align="right" style="padding:6px 0;color:${INK};font-size:14px;font-weight:bold;font-family:${FONT};text-align:right;">${escapeHtml(
+                  value,
+                )}</td>
+              </tr>`,
     )
     .join("");
 
   const button = options.button
     ? `
-      <tr><td style="padding-top:20px;">
-        <a href="${escapeHtml(options.button.url)}"
-           style="display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;
-                  padding:10px 18px;border-radius:6px;font-size:14px;font-weight:500;">
-          ${escapeHtml(options.button.label)}
-        </a>
-      </td></tr>`
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr><td align="left" style="padding-top:20px;">
+                <a href="${escapeHtml(options.button.url)}"
+                   style="display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;
+                          padding:11px 18px;border-radius:6px;font-size:14px;font-weight:bold;font-family:${FONT};">
+                  ${escapeHtml(options.button.label)}
+                </a>
+              </td></tr>
+            </table>`
     : "";
 
   const footnote = options.footnote
-    ? `<p style="margin:16px 0 0;color:${SUBTLE};font-size:12px;line-height:1.5;">${escapeHtml(
+    ? `<p style="margin:16px 0 0;color:${SUBTLE};font-size:12px;line-height:1.5;font-family:${FONT};">${escapeHtml(
         options.footnote,
       )}</p>`
     : "";
 
   return `<!doctype html>
 <html lang="en-AU">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:24px 12px;background:${PAPER};">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0"
-         style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid ${LINE};border-radius:8px;">
-    <tr><td style="padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-      <p style="margin:0 0 4px;color:${SUBTLE};font-size:11px;letter-spacing:0.12em;text-transform:uppercase;">
-        ${escapeHtml(APP_NAME)}
-      </p>
-      <h1 style="margin:0 0 10px;color:${INK};font-size:18px;font-weight:600;line-height:1.3;">
-        ${escapeHtml(options.heading)}
-      </h1>
-      <p style="margin:0;color:${MUTED};font-size:14px;line-height:1.6;">
-        ${escapeHtml(options.intro)}
-      </p>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(options.heading)}</title>
+</head>
+<body>
+  <!-- Page background sits here, not on <body>, which some clients discard. -->
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+         bgcolor="${PAPER}" style="background-color:${PAPER};width:100%;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
 
-      ${
-        rows
-          ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0"
-                    style="width:100%;margin-top:16px;border-top:1px solid ${LINE};">
-               ${rows}
-             </table>`
-          : ""
-      }
+        <!-- width attribute as well as max-width: Outlook ignores max-width. -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="520"
+               bgcolor="#ffffff"
+               style="width:520px;max-width:520px;background-color:#ffffff;border:1px solid ${LINE};border-radius:8px;">
+          <tr>
+            <td align="left" style="padding:24px;font-family:${FONT};">
 
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0">${button}</table>
+              <p style="margin:0 0 4px;color:${SUBTLE};font-size:11px;letter-spacing:1px;text-transform:uppercase;font-family:${FONT};">
+                ${escapeHtml(APP_NAME)}
+              </p>
+              <h1 style="margin:0 0 10px;color:${INK};font-size:18px;font-weight:bold;line-height:1.3;font-family:${FONT};">
+                ${escapeHtml(options.heading)}
+              </h1>
+              <p style="margin:0;color:${MUTED};font-size:14px;line-height:1.6;font-family:${FONT};">
+                ${escapeHtml(options.intro)}
+              </p>
 
-      ${footnote}
+              ${
+                rows
+                  ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+                            style="width:100%;margin-top:16px;border-top:1px solid ${LINE};">
+                       ${rows}
+                     </table>`
+                  : ""
+              }
 
-      <p style="margin:20px 0 0;padding-top:16px;border-top:1px solid ${LINE};
-                color:${SUBTLE};font-size:12px;line-height:1.5;">
-        Sent by ${escapeHtml(APP_NAME)}, your household's bill tracker.
-        This address is not monitored, so please do not reply.
-      </p>
-    </td></tr>
+              ${button}
+              ${footnote}
+
+              <p style="margin:20px 0 0;padding-top:16px;border-top:1px solid ${LINE};
+                        color:${SUBTLE};font-size:12px;line-height:1.5;font-family:${FONT};">
+                Sent by ${escapeHtml(APP_NAME)}, your household's bill tracker.
+                This address is not monitored, so please do not reply.
+              </p>
+
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
   </table>
 </body>
 </html>`;

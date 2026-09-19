@@ -19,7 +19,8 @@
     "docker:dev:down": "docker compose -f docker-compose.dev.yml down",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "demo": "docker compose -f docker-compose.dev.yml --profile demo up -d demo",
-    "demo:down": "docker compose -f docker-compose.dev.yml --profile demo down demo"
+    "demo:down": "docker compose -f docker-compose.dev.yml --profile demo down demo",
+    "mail:preview": "tsx scripts/mail-preview.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "2.2.1",
