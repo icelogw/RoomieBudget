@@ -91,7 +91,7 @@ describe("netting", () => {
 
   it("ignores voided bills", () => {
     const id = bill(alice, 10_000, [alice, bob]);
-    voidBill(db, { billId: id, actorId: alice, reason: "Entered twice" });
+    voidBill(db, { billId: id, actor: { id: alice, role: "admin" }, reason: "Entered twice" });
 
     expect(outstandingDebts(db)).toHaveLength(0);
   });
@@ -234,7 +234,7 @@ describe("settleBetween", () => {
 
   it("ignores shares on voided bills", () => {
     const voided = bill(alice, 10_000, [alice, bob]);
-    voidBill(db, { billId: voided, actorId: alice, reason: "Duplicate" });
+    voidBill(db, { billId: voided, actor: { id: alice, role: "admin" }, reason: "Duplicate" });
     bill(alice, 4000, [alice, bob]);
 
     expect(settleBetween(db, { debtorId: bob, creditorId: alice, actorId: bob }).count).toBe(1);

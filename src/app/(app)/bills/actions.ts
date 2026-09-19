@@ -232,8 +232,14 @@ export async function voidBillAction(
 
   if (!reason) return { fieldErrors: { reason: "Say why, so the record makes sense later" } };
 
-  const ok = voidBill(getDb(), { billId, actorId: user.id, reason });
-  if (!ok) return { message: "That bill has already been voided." };
+  const ok = voidBill(getDb(), { billId, actor: user, reason });
+  if (!ok) {
+    return {
+      message:
+        "That bill has already been voided, or is not yours to void. Whoever " +
+        "entered it, whoever paid it, or an admin can.",
+    };
+  }
 
   revalidatePath("/");
   revalidatePath("/balances");

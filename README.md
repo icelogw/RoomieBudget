@@ -41,6 +41,11 @@ closes permanently, so it cannot be used to mint a second admin later.
 Signing in lasts thirty days, counted from when you signed in rather than from
 when you last used it, so everyone signs in again about once a month.
 
+Admins manage the household: invites, categories, the household name. Anyone
+can add a bill and settle a share, either party can mark one paid, and a
+recurring bill can be paused or deleted by whoever set it up or by an admin.
+Voiding a bill is for whoever entered it, whoever paid it, or an admin.
+
 ## Configuration
 
 Everything is environment variables. Only `SESSION_SECRET` is required.

@@ -9,6 +9,7 @@ const INITIAL: RecurringState = {};
 
 export function SeriesRow({
   item,
+  canManage,
 }: {
   item: {
     id: string;
@@ -17,6 +18,8 @@ export function SeriesRow({
     nextLabel: string;
     isActive: boolean;
   };
+  /** Rendering only. The action checks again, since it is reachable anyway. */
+  canManage: boolean;
 }) {
   const [toggleState, toggleAction, togglePending] = useActionState(toggleSeries, INITIAL);
   const [removeState, removeAction, removePending] = useActionState(removeSeries, INITIAL);
@@ -35,6 +38,7 @@ export function SeriesRow({
           <p className="mt-0.5 text-xs text-ink-muted">{item.nextLabel}</p>
         </div>
 
+        {canManage && (
         <div className="flex shrink-0 items-center gap-1">
           <form action={toggleAction}>
             <input type="hidden" name="seriesId" value={item.id} />
@@ -59,6 +63,7 @@ export function SeriesRow({
             </button>
           </form>
         </div>
+        )}
       </div>
 
       {error && (

@@ -156,7 +156,7 @@ describe("settling", () => {
   it("will not settle a share on a voided bill", () => {
     const id = newBill(10_000);
     const share = getBill(db, id)!.shares[0];
-    voidBill(db, { billId: id, actorId: alice, reason: "Entered twice" });
+    voidBill(db, { billId: id, actor: { id: alice, role: "admin" }, reason: "Entered twice" });
 
     expect(setShareSettled(db, { shareId: share.id, actorId: bob, settled: true })).toBe(false);
   });
@@ -187,7 +187,7 @@ describe("settleAllForUser", () => {
 
   it("ignores shares on voided bills", () => {
     const voided = newBill(10_000);
-    voidBill(db, { billId: voided, actorId: alice, reason: "Duplicate" });
+    voidBill(db, { billId: voided, actor: { id: alice, role: "admin" }, reason: "Duplicate" });
     newBill(4000);
 
     expect(settleAllForUser(db, { userId: bob, actorId: alice })).toBe(1);
@@ -201,7 +201,7 @@ describe("settleAllForUser", () => {
 describe("voiding", () => {
   it("hides the bill from the list but keeps the record", () => {
     const id = newBill(10_000);
-    voidBill(db, { billId: id, actorId: alice, reason: "Entered twice" });
+    voidBill(db, { billId: id, actor: { id: alice, role: "admin" }, reason: "Entered twice" });
 
     expect(listBills(db)).toHaveLength(0);
 
@@ -212,8 +212,54 @@ describe("voiding", () => {
 
   it("cannot be done twice", () => {
     const id = newBill(10_000);
-    expect(voidBill(db, { billId: id, actorId: alice, reason: "First" })).toBe(true);
-    expect(voidBill(db, { billId: id, actorId: alice, reason: "Second" })).toBe(false);
+    expect(voidBill(db, { billId: id, actor: { id: alice, role: "admin" }, reason: "First" })).toBe(true);
+    expect(voidBill(db, { billId: id, actor: { id: alice, role: "admin" }, reason: "Second" })).toBe(false);
+  });
+});
+
+describe("who may void a bill", () => {
+  /**
+   * Voiding takes a bill out of everyone's balance, which is not the same kind
+   * of act as settling a share — that is open to either party by design.
+   */
+  it("refuses a member with no part in it", () => {
+    const id = newBill(10_000, [alice, bob], alice);
+
+    expect(
+      voidBill(db, { billId: id, actor: { id: charlie, role: "member" }, reason: "Nosy" }),
+    ).toBe(false);
+    expect(listBills(db)).toHaveLength(1);
+  });
+
+  it("allows whoever entered it", () => {
+    const id = newBill(10_000, [alice, bob], alice);
+
+    expect(
+      voidBill(db, { billId: id, actor: { id: alice, role: "member" }, reason: "Duplicate" }),
+    ).toBe(true);
+  });
+
+  it("allows whoever paid it", () => {
+    const id = createBill(db, {
+      createdBy: alice,
+      paidBy: bob,
+      description: "Power",
+      totalCents: 10_000,
+      issuedOn: "2026-09-19",
+      split: { mode: "even", userIds: [alice, bob] },
+    });
+
+    expect(
+      voidBill(db, { billId: id, actor: { id: bob, role: "member" }, reason: "Wrong amount" }),
+    ).toBe(true);
+  });
+
+  it("allows an admin with no part in it", () => {
+    const id = newBill(10_000, [alice, bob], alice);
+
+    expect(
+      voidBill(db, { billId: id, actor: { id: charlie, role: "admin" }, reason: "Tidying" }),
+    ).toBe(true);
   });
 });
 

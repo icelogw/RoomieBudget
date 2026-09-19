@@ -17,6 +17,9 @@ import { createBill } from "./bills";
  * appears on the day it is due to be issued, not before.
  */
 
+/** Who is asking, for the operations that are not open to everyone. */
+export type Actor = { id: string; role: "admin" | "member" };
+
 /** JSON shape of recurring_series.splitConfig. */
 export type SeriesParticipant = { userId: string; weight: number };
 
@@ -34,6 +37,7 @@ export type SeriesSummary = {
   participants: SeriesParticipant[];
   participantNames: string[];
   isActive: boolean;
+  createdBy: string;
   paidBy: string;
   paidByName: string;
 };
@@ -155,15 +159,31 @@ export function listSeries(db: Db): SeriesSummary[] {
       participants,
       participantNames: participants.map((p) => names.get(p.userId) ?? "Unknown"),
       isActive: series.isActive,
+      createdBy: series.createdBy,
       paidBy: series.paidBy ?? series.createdBy,
       paidByName: names.get(series.paidBy ?? series.createdBy) ?? creatorName,
     };
   });
 }
 
+/**
+ * Who may pause, resume or delete a standing arrangement.
+ *
+ * Everything else on the Household page is admin-only, and a member being able
+ * to delete the rent series while not being able to rename a category is not a
+ * position anyone chose. The person who set it up can manage it, as can an
+ * admin. Settling a share stays deliberately open to either party.
+ */
+export function canManageSeries(
+  series: { createdBy: string },
+  actor: Actor,
+): boolean {
+  return actor.role === "admin" || actor.id === series.createdBy;
+}
+
 export function setSeriesActive(
   db: Db,
-  input: { seriesId: string; actorId: string; active: boolean },
+  input: { seriesId: string; actor: Actor; active: boolean },
 ): boolean {
   const series = db
     .select()
@@ -171,6 +191,7 @@ export function setSeriesActive(
     .where(eq(recurringSeries.id, input.seriesId))
     .get();
   if (!series) return false;
+  if (!canManageSeries(series, input.actor)) return false;
 
   db.update(recurringSeries)
     .set({
@@ -187,7 +208,7 @@ export function setSeriesActive(
   db.insert(auditLog)
     .values({
       id: newId(),
-      actorId: input.actorId,
+      actorId: input.actor.id,
       action: input.active ? "series.resumed" : "series.paused",
       entityType: "recurring_series",
       entityId: input.seriesId,
@@ -199,7 +220,7 @@ export function setSeriesActive(
 
 export function deleteSeries(
   db: Db,
-  input: { seriesId: string; actorId: string },
+  input: { seriesId: string; actor: Actor },
 ): boolean {
   const series = db
     .select()
@@ -207,6 +228,7 @@ export function deleteSeries(
     .where(eq(recurringSeries.id, input.seriesId))
     .get();
   if (!series) return false;
+  if (!canManageSeries(series, input.actor)) return false;
 
   // Bills already generated keep their history; the schema sets their
   // series_id to null rather than removing them.
@@ -215,7 +237,7 @@ export function deleteSeries(
   db.insert(auditLog)
     .values({
       id: newId(),
-      actorId: input.actorId,
+      actorId: input.actor.id,
       action: "series.deleted",
       entityType: "recurring_series",
       entityId: input.seriesId,

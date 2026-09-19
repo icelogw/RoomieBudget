@@ -6,6 +6,7 @@ import { auditLog, billShares, bills, users } from "@/db/schema";
 import { newId } from "@/lib/ids";
 import type { Cents } from "@/lib/money";
 import { computeShares, type Split } from "@/lib/split";
+import type { Actor } from "./recurring";
 
 // Bills join users twice — once for who entered it, once for who paid.
 const payer = alias(users, "payer");
@@ -357,26 +358,42 @@ export function settleAllForUser(
 }
 
 /**
+ * Who may void a bill.
+ *
+ * Voiding removes a bill from everyone's balance, so it is not the same kind
+ * of act as settling a share, which either party may do by design. The person
+ * who entered it and the person who paid for it both have a direct stake;
+ * anyone else needs to be an admin.
+ */
+export function canVoidBill(
+  bill: { createdBy: string; paidBy: string | null },
+  actor: Actor,
+): boolean {
+  return actor.role === "admin" || actor.id === bill.createdBy || actor.id === bill.paidBy;
+}
+
+/**
  * Void a bill. Never a delete: the row stays, with who voided it and why, so
  * "what happened to the power bill?" has an answer.
  */
 export function voidBill(
   db: Db,
-  input: { billId: string; actorId: string; reason: string },
+  input: { billId: string; actor: Actor; reason: string },
 ): boolean {
   return db.transaction((tx) => {
     const bill = tx.select().from(bills).where(eq(bills.id, input.billId)).get();
     if (!bill || bill.voidedAt) return false;
+    if (!canVoidBill(bill, input.actor)) return false;
 
     tx.update(bills)
-      .set({ voidedAt: new Date(), voidedBy: input.actorId, voidReason: input.reason })
+      .set({ voidedAt: new Date(), voidedBy: input.actor.id, voidReason: input.reason })
       .where(eq(bills.id, input.billId))
       .run();
 
     tx.insert(auditLog)
       .values({
         id: newId(),
-        actorId: input.actorId,
+        actorId: input.actor.id,
         action: "bill.voided",
         entityType: "bill",
         entityId: input.billId,

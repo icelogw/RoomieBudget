@@ -194,6 +194,7 @@ export default async function BillsPage() {
               return (
                 <SeriesRow
                   key={item.id}
+                  canManage={user.role === "admin" || item.createdBy === user.id}
                   item={{
                     id: item.id,
                     description: item.description,

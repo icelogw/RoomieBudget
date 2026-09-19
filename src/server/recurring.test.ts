@@ -145,7 +145,7 @@ describe("generateDueBills", () => {
 
   it("skips a paused series", () => {
     const id = series();
-    setSeriesActive(db, { seriesId: id, actorId: alice, active: false });
+    setSeriesActive(db, { seriesId: id, actor: { id: alice, role: "admin" }, active: false });
 
     expect(generateDueBills(db, { today: "2026-09-30" }).billsCreated).toBe(0);
   });
@@ -276,15 +276,77 @@ describe("pausing and resuming", () => {
   it("does not backfill the gap when resumed", () => {
     const id = series();
     generateDueBills(db, { today: "2026-09-01" });
-    setSeriesActive(db, { seriesId: id, actorId: alice, active: false });
+    setSeriesActive(db, { seriesId: id, actor: { id: alice, role: "admin" }, active: false });
 
     // Long gap while paused, then resumed. The missed fortnights are gone for
     // good rather than arriving all at once.
-    setSeriesActive(db, { seriesId: id, actorId: alice, active: true });
+    setSeriesActive(db, { seriesId: id, actor: { id: alice, role: "admin" }, active: true });
     const next = listSeries(db)[0].nextIssueOn;
 
     expect(next > "2026-09-01").toBe(true);
     expect(listBills(db)).toHaveLength(1);
+  });
+});
+
+describe("who may manage a series", () => {
+  /**
+   * Everything else on the Household page is admin-only, so a member being
+   * able to delete the rent series while not being able to rename a category
+   * was not a position anyone chose.
+   */
+  const member = { id: "", role: "member" as const };
+
+  beforeEach(() => {
+    member.id = bob;
+  });
+
+  it("refuses a member who did not set it up", () => {
+    const id = series();
+
+    expect(setSeriesActive(db, { seriesId: id, actor: member, active: false })).toBe(false);
+    expect(deleteSeries(db, { seriesId: id, actor: member })).toBe(false);
+  });
+
+  it("leaves the series running after a refused pause", () => {
+    const id = series();
+    setSeriesActive(db, { seriesId: id, actor: member, active: false });
+
+    expect(listSeries(db)[0].isActive).toBe(true);
+  });
+
+  it("allows whoever set it up, even as a member", () => {
+    const id = createSeries(db, {
+      createdBy: bob,
+      paidBy: bob,
+      description: "Internet",
+      amountMode: "fixed",
+      totalCents: 8900,
+      frequency: "monthly",
+      anchorDate: "2026-09-01",
+      dueOffsetDays: 7,
+      splitMode: "single",
+      participants: [{ userId: bob, weight: 1 }],
+    });
+
+    expect(setSeriesActive(db, { seriesId: id, actor: member, active: false })).toBe(true);
+    expect(deleteSeries(db, { seriesId: id, actor: member })).toBe(true);
+  });
+
+  it("allows an admin who did not set it up", () => {
+    const id = createSeries(db, {
+      createdBy: bob,
+      paidBy: bob,
+      description: "Internet",
+      amountMode: "fixed",
+      totalCents: 8900,
+      frequency: "monthly",
+      anchorDate: "2026-09-01",
+      dueOffsetDays: 7,
+      splitMode: "single",
+      participants: [{ userId: bob, weight: 1 }],
+    });
+
+    expect(deleteSeries(db, { seriesId: id, actor: { id: alice, role: "admin" } })).toBe(true);
   });
 });
 
@@ -293,7 +355,7 @@ describe("deleteSeries", () => {
     const id = series();
     generateDueBills(db, { today: "2026-09-01" });
 
-    expect(deleteSeries(db, { seriesId: id, actorId: alice })).toBe(true);
+    expect(deleteSeries(db, { seriesId: id, actor: { id: alice, role: "admin" } })).toBe(true);
     expect(listSeries(db)).toHaveLength(0);
 
     const remaining = listBills(db);
@@ -304,7 +366,7 @@ describe("deleteSeries", () => {
   it("detaches those bills from the deleted series", () => {
     const id = series();
     generateDueBills(db, { today: "2026-09-01" });
-    deleteSeries(db, { seriesId: id, actorId: alice });
+    deleteSeries(db, { seriesId: id, actor: { id: alice, role: "admin" } });
 
     const orphaned = db.select().from(recurringSeries).where(eq(recurringSeries.id, id)).all();
     expect(orphaned).toHaveLength(0);

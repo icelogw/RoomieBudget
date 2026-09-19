@@ -18,8 +18,8 @@ export async function toggleSeries(
   const seriesId = String(formData.get("seriesId") ?? "");
   const active = formData.get("active") === "true";
 
-  if (!setSeriesActive(getDb(), { seriesId, actorId: user.id, active })) {
-    return { message: "That recurring bill no longer exists." };
+  if (!setSeriesActive(getDb(), { seriesId, actor: user, active })) {
+    return { message: "Only whoever set that up, or an admin, can change it." };
   }
 
   revalidatePath("/");
@@ -33,8 +33,8 @@ export async function removeSeries(
   const user = await requireUser();
 
   const seriesId = String(formData.get("seriesId") ?? "");
-  if (!deleteSeries(getDb(), { seriesId, actorId: user.id })) {
-    return { message: "That recurring bill no longer exists." };
+  if (!deleteSeries(getDb(), { seriesId, actor: user })) {
+    return { message: "Only whoever set that up, or an admin, can delete it." };
   }
 
   revalidatePath("/");
