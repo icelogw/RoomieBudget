@@ -11,6 +11,7 @@ import { fieldErrorsFrom, type FormState } from "@/lib/forms";
 import { MoneyError, parseAmount } from "@/lib/money";
 import { parsePercent, type Split } from "@/lib/split";
 import { createBill, setShareSettled, voidBill } from "@/server/bills";
+import { notifyBillCreated } from "@/server/notifications";
 import { finaliseDraftBill } from "@/server/recurring";
 
 export type BillFormState = FormState & { notice?: string };
@@ -132,6 +133,8 @@ export async function addBill(
     };
   }
 
+  notifyBillCreated(getDb(), billId);
+
   revalidatePath("/");
   revalidatePath("/balances");
   redirect(`/bills/${billId}`);
@@ -191,6 +194,10 @@ export async function finaliseBill(
 
   const result = finaliseDraftBill(getDb(), { billId, totalCents, actorId: user.id });
   if (!result.ok) return { message: result.reason };
+
+  // Only now does anyone owe anything, so this is when it is worth telling
+  // them — not when the empty draft appeared.
+  notifyBillCreated(getDb(), billId);
 
   revalidatePath("/");
   revalidatePath("/balances");

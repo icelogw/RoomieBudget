@@ -9,7 +9,8 @@ import { getDb } from "@/db";
 import { auditLog, invites, users } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth/current-user";
 import { invalidateAllSessionsForUser } from "@/lib/auth/session";
-import { getEnv } from "@/lib/env";
+import { getEnv, isMailEnabled } from "@/lib/env";
+import { sendInviteEmail } from "@/server/notifications";
 import { fieldErrorsFrom, type FormState } from "@/lib/forms";
 import { newId } from "@/lib/ids";
 
@@ -101,12 +102,43 @@ export async function inviteHousemate(
       .run();
   });
 
+  const link = buildLink(token);
+  const emailed = await deliverInvite(db, {
+    inviteId,
+    name: parsed.data.name,
+    email,
+    link,
+    invitedBy: admin.name,
+  });
+
   revalidatePath("/household");
 
   return {
-    inviteLink: buildLink(token),
-    notice: `Invite ready for ${parsed.data.name}.`,
+    inviteLink: link,
+    notice: emailed
+      ? `Invite emailed to ${parsed.data.name}. The link is below as well.`
+      : `Invite ready for ${parsed.data.name}.`,
   };
+}
+
+/**
+ * Email the invite if mail is configured, and never let a mail failure lose
+ * the invite — the link is returned either way, so the household can pass it
+ * on by hand.
+ */
+async function deliverInvite(
+  db: ReturnType<typeof getDb>,
+  input: { inviteId: string; name: string; email: string; link: string; invitedBy: string },
+): Promise<boolean> {
+  if (!isMailEnabled()) return false;
+
+  try {
+    await sendInviteEmail(db, input);
+    return true;
+  } catch (error) {
+    console.error("Invite email failed:", error);
+    return false;
+  }
 }
 
 export async function regenerateInvite(
@@ -142,11 +174,22 @@ export async function regenerateInvite(
     })
     .run();
 
+  const link = buildLink(token);
+  const emailed = await deliverInvite(db, {
+    inviteId,
+    name: invite.name,
+    email: invite.email,
+    link,
+    invitedBy: admin.name,
+  });
+
   revalidatePath("/household");
 
   return {
-    inviteLink: buildLink(token),
-    notice: `New link for ${invite.name}. The previous one no longer works.`,
+    inviteLink: link,
+    notice: emailed
+      ? `New link emailed to ${invite.name}. The previous one no longer works.`
+      : `New link for ${invite.name}. The previous one no longer works.`,
   };
 }
 

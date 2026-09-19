@@ -32,6 +32,13 @@ services:
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
 
+      # Mail goes to the catcher below rather than anywhere real. Read it at
+      # http://localhost:8025 — nothing leaves the machine.
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      MAIL_FROM: no-reply@roomiebudget.local
+
     volumes:
       # The project, so edits on the host are visible inside the container.
       - .:/app
@@ -46,6 +53,20 @@ services:
 
       # The database, kept on the host so it survives a rebuild.
       - ./data:/data
+
+    depends_on:
+      - mailpit
+
+  # Development only. Catches every outgoing email and shows it in a web
+  # inbox, so notification changes can be checked without sending anything to
+  # a real address or configuring a relay.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: roomiebudget-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"  # web inbox
+      - "1025:1025"  # SMTP
 
 volumes:
   node_modules:
