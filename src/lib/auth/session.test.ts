@@ -12,6 +12,7 @@ import {
   invalidateAllSessionsForUser,
   invalidateSession,
   safeEquals,
+  sessionIdFor,
   tokenToId,
   validateSessionToken,
 } from "./session";
@@ -141,6 +142,48 @@ describe("invalidation", () => {
     db.delete(users).where(eq(users.id, userId)).run();
 
     expect(db.select().from(sessions).all()).toHaveLength(0);
+  });
+});
+
+describe("SESSION_SECRET", () => {
+  /**
+   * The README has always said rotating the secret signs everyone out. It did
+   * not: session ids were a bare digest of the token, so the secret could
+   * change and every existing session carried on working. An operator who
+   * rotated it to cut off access would have cut off nothing.
+   */
+  it("changes the stored id, so the same token does not resolve under another secret", () => {
+    const token = generateSessionToken();
+
+    expect(sessionIdFor(token, "a".repeat(32))).not.toBe(sessionIdFor(token, "b".repeat(32)));
+  });
+
+  it("invalidates a session minted under a different secret", () => {
+    const { token } = createSession(db, userId);
+
+    // What rotation looks like from the database's point of view: the row is
+    // still there, but its id was derived under a secret no longer in use.
+    db.update(sessions)
+      .set({ id: sessionIdFor(token, "a-secret-no-longer-in-use-abcdefgh") })
+      .where(eq(sessions.id, tokenToId(token)))
+      .run();
+
+    expect(validateSessionToken(db, token)).toBeNull();
+  });
+
+  it("is deterministic for a given token and secret", () => {
+    const token = generateSessionToken();
+    const secret = "c".repeat(32);
+
+    expect(sessionIdFor(token, secret)).toBe(sessionIdFor(token, secret));
+  });
+
+  it("does not store anything resembling the token", () => {
+    const token = generateSessionToken();
+    const id = sessionIdFor(token, "d".repeat(32));
+
+    expect(id).not.toContain(token);
+    expect(id).toHaveLength(64);
   });
 });
 

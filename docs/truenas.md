@@ -35,8 +35,9 @@ docker build -t roomiebudget:latest .
 openssl rand -base64 48
 ```
 
-Keep it. Changing it later signs everyone out; losing it means generating a new
-one and signing everyone out once.
+Keep it. Session ids in the database are derived from it, so changing it signs
+everyone out — which is how to cut off access in a hurry if a device goes
+missing. Losing it costs one round of signing back in, nothing more.
 
 ## 4. Run it
 

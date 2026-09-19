@@ -47,7 +47,7 @@ Everything is environment variables. Only `SESSION_SECRET` is required.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `SESSION_SECRET` | — | Signs session cookies. **Required.** Changing it signs everyone out |
+| `SESSION_SECRET` | — | Keys the session ids held in the database. **Required.** Changing it signs everyone out, which is how to revoke access in a hurry |
 | `APP_URL` | `http://localhost:3000` | The URL housemates actually open. Used for links in emails, so `localhost` produces links that work for nobody but you |
 | `TZ` | `Australia/Sydney` | The household's timezone. Drives due dates and reminders |
 | `DATA_DIR` | `/data` | Where the SQLite file lives. Mount this |

@@ -1,8 +1,9 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { eq, lt } from "drizzle-orm";
 
 import type { Db } from "@/db/connection";
 import { sessions, users } from "@/db/schema";
+import { getEnv } from "@/lib/env";
 
 /**
  * Thirty days from signing in, and it does not move.
@@ -19,15 +20,28 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const LAST_SEEN_THROTTLE_MS = 60 * 60 * 1000;
 
 /**
- * The cookie holds a random token. The database holds only its SHA-256.
+ * Derive the stored session id from a cookie token and a secret.
  *
- * That asymmetry is the point: a leaked database backup contains no value that
- * can be replayed as a login. SHA-256 is the right hash here rather than
- * argon2 — the token already has 256 bits of entropy, so there is nothing to
- * brute force and no reason to pay a slow hash on every request.
+ * The cookie holds a random token; the database holds only this digest. That
+ * asymmetry is the point: a leaked database backup contains no value that can
+ * be replayed as a login. A plain hash would do that much, but keying it on
+ * SESSION_SECRET also means the file alone is not enough to mint a valid id —
+ * whoever has it would need the secret too, which lives in the environment.
+ *
+ * It is what makes rotating SESSION_SECRET actually revoke access, which the
+ * README has always promised. Every stored id was derived under the old
+ * secret, so none of them match once it changes.
+ *
+ * HMAC-SHA256 rather than argon2: the token already carries 256 bits of
+ * entropy, so there is nothing to brute force and no reason to pay a slow hash
+ * on every request.
  */
+export function sessionIdFor(token: string, secret: string): string {
+  return createHmac("sha256", secret).update(token).digest("hex");
+}
+
 function tokenToId(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
+  return sessionIdFor(token, getEnv().SESSION_SECRET);
 }
 
 export function generateSessionToken(): string {
