@@ -60,8 +60,10 @@ ENV NODE_ENV=production \
 # tzdata so TZ=Australia/Sydney resolves to real rules rather than UTC —
 # without it, due dates land on the wrong day for half the year.
 # wget is for the healthcheck below.
+# sqlite3 is for backing up a running database and reading the mail log. The
+# deployment notes tell an operator to run it, so it has to actually be here.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends tzdata wget \
+ && apt-get install -y --no-install-recommends tzdata wget sqlite3 \
  && rm -rf /var/lib/apt/lists/*
 
 # The standalone output is a self-contained server: only the traced

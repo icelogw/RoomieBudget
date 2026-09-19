@@ -53,6 +53,6 @@ total. Allocation order is stable so the same bill splits the same way twice.
 - [x] 7. Recurring series and the scheduler
 - [x] 8. Email delivery and reminder jobs
 - [x] 9. Mobile and desktop shells
-- [ ] 10. History, search, CSV export
-- [~] 11. Dockerfile and compose done; TrueNAS notes outstanding
-- [ ] 12. README and first-run walkthrough
+- [x] 10. History, search, CSV export
+- [x] 11. Dockerfile, compose, TrueNAS deployment notes
+- [x] 12. README and first-run walkthrough
