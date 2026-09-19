@@ -129,6 +129,79 @@ describe("balanceFor", () => {
   });
 });
 
+describe("settling a netted debt", () => {
+  /**
+   * The balances page nets both directions into one figure and says so. If
+   * settling only clears the leg running the way the arrow points, the
+   * reverse leg survives and immediately reappears as a debt the other way —
+   * so somebody hands over the netted amount and the app then claims they are
+   * owed money. Settling has to leave the pair at zero.
+   */
+  function mutualDebt() {
+    bill(alice, 12_000, [alice, bob]); // Bob owes Alice $60
+    bill(bob, 5000, [alice, bob]); // Alice owes Bob $25
+  }
+
+  it("starts from a single netted debt", () => {
+    mutualDebt();
+
+    const debts = outstandingDebts(db);
+    expect(debts).toHaveLength(1);
+    expect(debts[0].debtorName).toBe("Bob");
+    expect(debts[0].amountCents).toBe(3500);
+  });
+
+  it("leaves nothing outstanding between the pair", () => {
+    mutualDebt();
+
+    settleBetween(db, { debtorId: bob, creditorId: alice, actorId: bob });
+
+    expect(outstandingDebts(db)).toHaveLength(0);
+  });
+
+  it("leaves both people at zero", () => {
+    mutualDebt();
+
+    settleBetween(db, { debtorId: bob, creditorId: alice, actorId: bob });
+
+    expect(balanceFor(db, bob).netCents).toBe(0);
+    expect(balanceFor(db, alice).netCents).toBe(0);
+  });
+
+  it("reports the net amount that changed hands, not one leg of it", () => {
+    mutualDebt();
+
+    const result = settleBetween(db, { debtorId: bob, creditorId: alice, actorId: bob });
+
+    expect(result.totalCents).toBe(3500);
+    expect(result.count).toBe(2);
+  });
+
+  it("settles the same way whichever side is named as the debtor", () => {
+    mutualDebt();
+
+    // The page hands over whichever direction it decided to display; the
+    // outcome must not depend on that.
+    settleBetween(db, { debtorId: alice, creditorId: bob, actorId: alice });
+
+    expect(outstandingDebts(db)).toHaveLength(0);
+  });
+
+  it("does not touch a third person when a mutual debt is settled", () => {
+    mutualDebt();
+    bill(charlie, 8000, [charlie, bob]); // Bob owes Charlie $40
+    bill(bob, 2000, [bob, charlie]); // Charlie owes Bob $10
+
+    settleBetween(db, { debtorId: bob, creditorId: alice, actorId: bob });
+
+    const remaining = outstandingDebts(db);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].debtorName).toBe("Bob");
+    expect(remaining[0].creditorName).toBe("Charlie");
+    expect(remaining[0].amountCents).toBe(3000); // $40 - $10
+  });
+});
+
 describe("settleBetween", () => {
   it("clears everything owed to that one person", () => {
     bill(alice, 10_000, [alice, bob]);

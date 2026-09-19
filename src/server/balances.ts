@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull, ne, or } from "drizzle-orm";
 
 import type { Db } from "@/db/connection";
 import { auditLog, billShares, bills, users } from "@/db/schema";
@@ -135,10 +135,20 @@ export function balanceFor(db: Db, userId: string): PersonalBalance {
 }
 
 /**
- * Settle everything one person owes another, in one action.
+ * Settle everything outstanding between two people, in one action.
  *
- * Scoped to the pair rather than to the debtor alone: settling up with one
- * housemate must not quietly clear what you owe a different one.
+ * Both directions, not just the one the caller named as owing. The balances
+ * page nets the pair down to a single figure and tells the user it has done
+ * so, so settling has to leave them at zero — clearing only the leg the arrow
+ * points at leaves the reverse leg alive, and it reappears immediately as a
+ * debt running the other way. Somebody would hand over the netted amount and
+ * the app would then claim they were owed money.
+ *
+ * A share carries no notion of a partial amount, so there is nothing to
+ * apportion: every share between the two is settled, and the figure reported
+ * is the net, because that is what actually changed hands.
+ *
+ * Still scoped to the pair. Shares involving anyone else are untouched.
  */
 export function settleBetween(
   db: Db,
@@ -146,15 +156,21 @@ export function settleBetween(
 ): { count: number; totalCents: Cents } {
   return db.transaction((tx) => {
     const outstanding = tx
-      .select({ id: billShares.id, amountCents: billShares.amountCents })
+      .select({
+        id: billShares.id,
+        amountCents: billShares.amountCents,
+        owedBy: billShares.userId,
+      })
       .from(billShares)
       .innerJoin(bills, eq(billShares.billId, bills.id))
       .where(
         and(
-          eq(billShares.userId, input.debtorId),
-          eq(bills.paidBy, input.creditorId),
           isNull(billShares.settledAt),
           isNull(bills.voidedAt),
+          or(
+            and(eq(billShares.userId, input.debtorId), eq(bills.paidBy, input.creditorId)),
+            and(eq(billShares.userId, input.creditorId), eq(bills.paidBy, input.debtorId)),
+          ),
         ),
       )
       .all();
@@ -169,7 +185,15 @@ export function settleBetween(
         .run();
     }
 
-    const totalCents = outstanding.reduce((acc, s) => acc + s.amountCents, 0);
+    const owedByDebtor = outstanding
+      .filter((s) => s.owedBy === input.debtorId)
+      .reduce((acc, s) => acc + s.amountCents, 0);
+
+    const owedByCreditor = outstanding
+      .filter((s) => s.owedBy === input.creditorId)
+      .reduce((acc, s) => acc + s.amountCents, 0);
+
+    const totalCents = Math.abs(owedByDebtor - owedByCreditor);
 
     tx.insert(auditLog)
       .values({
@@ -178,10 +202,14 @@ export function settleBetween(
         action: "balance.settled_up",
         entityType: "user",
         entityId: input.debtorId,
+        // Both gross figures as well as the net, so the entry is enough on its
+        // own to reconstruct what was cleared in each direction.
         detail: JSON.stringify({
           creditorId: input.creditorId,
           count: outstanding.length,
-          totalCents,
+          owedByDebtorCents: owedByDebtor,
+          owedByCreditorCents: owedByCreditor,
+          netCents: totalCents,
         }),
       })
       .run();
