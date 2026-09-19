@@ -133,4 +133,7 @@ cannot store a split that does not reconcile.
 
 ## Licence
 
-None chosen. Do what you like with it.
+Personal use only. See [LICENSE](LICENSE).
+
+In short: run it for your own household, modify it as you like. Do not sell
+it, run it as a service for other people, or redistribute it.
