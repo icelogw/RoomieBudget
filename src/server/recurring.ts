@@ -1,4 +1,4 @@
-import { and, asc, eq, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, lte } from "drizzle-orm";
 
 import type { Db } from "@/db/connection";
 import { auditLog, billShares, bills, recurringSeries, users } from "@/db/schema";
@@ -88,6 +88,20 @@ export function createSeries(db: Db, input: CreateSeriesInput): string {
   }
   if (input.amountMode === "fixed" && (!input.totalCents || input.totalCents <= 0)) {
     throw new Error("A fixed recurring bill needs an amount");
+  }
+
+  // splitConfig is JSON, so no foreign key covers who is named in it. Without
+  // this, a bad participant yields a series that fails on every generation run
+  // from now on, forever, with nothing but a console line to say why.
+  const participantIds = input.participants.map((p) => p.userId);
+  const known = db
+    .select({ id: users.id })
+    .from(users)
+    .where(inArray(users.id, participantIds))
+    .all();
+
+  if (known.length !== new Set(participantIds).size) {
+    throw new Error("Somebody on this recurring bill is not in the household");
   }
 
   const id = newId();

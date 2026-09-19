@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { and, eq } from "drizzle-orm";
+
 import { getDb } from "@/db";
+import { users } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current-user";
 import { todayIso } from "@/lib/dates";
 import { fieldErrorsFrom, type FormState } from "@/lib/forms";
@@ -158,7 +161,21 @@ export async function addBill(
 
   // Who fronted the money. Defaults to whoever is entering the bill, which
   // is nearly always the same person.
+  //
+  // Checked here rather than left to the foreign key: the constraint does
+  // catch a bogus id, but only as a driver error whose text is no use to
+  // anyone reading it on a form.
   const paidBy = String(formData.get("paidBy") || user.id);
+
+  const payer = getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, paidBy), eq(users.isActive, true)))
+    .get();
+
+  if (!payer) {
+    return { fieldErrors: { paidBy: "Choose someone who still lives here" } };
+  }
 
   const repeats = formData.get("repeats") !== null;
   const amountVaries = formData.get("amountVaries") !== null;
@@ -188,12 +205,14 @@ export async function addBill(
       split,
     });
   } catch (error) {
-    // Split problems are the user's to fix and are phrased for them; anything
-    // else is a genuine fault and should not be dressed up as advice.
+    // Split problems are the user's to fix and are phrased for them. Anything
+    // else is a genuine fault: it is logged rather than shown, because a
+    // driver message on a form tells the reader nothing and can name a path
+    // on the server.
     if (error instanceof MoneyError) return { message: error.message };
-    return {
-      message: error instanceof Error ? error.message : "That bill could not be saved.",
-    };
+
+    console.error("Saving a bill failed:", error);
+    return { message: "That bill could not be saved." };
   }
 
   notifyBillCreated(getDb(), billId);
@@ -331,10 +350,9 @@ async function addRecurring(
     });
   } catch (error) {
     if (error instanceof MoneyError) return { message: error.message };
-    return {
-      message:
-        error instanceof Error ? error.message : "That recurring bill could not be saved.",
-    };
+
+    console.error("Saving a recurring bill failed:", error);
+    return { message: "That recurring bill could not be saved." };
   }
 
   // Issues the first bill now if the start date has arrived.

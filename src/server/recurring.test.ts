@@ -67,6 +67,16 @@ describe("createSeries", () => {
   it("refuses a series with nobody on it", () => {
     expect(() => series({ participants: [] })).toThrow(/at least one person/);
   });
+
+  it("refuses somebody who is not in the household", () => {
+    // splitConfig is JSON, so no foreign key catches this. Left unchecked it
+    // produces a series that fails on every run from now on.
+    expect(() =>
+      series({ participants: [{ userId: "not-a-real-person", weight: 1 }] }),
+    ).toThrow(/not in the household/);
+
+    expect(listSeries(db)).toHaveLength(0);
+  });
 });
 
 describe("generateDueBills", () => {
