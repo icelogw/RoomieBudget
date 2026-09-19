@@ -11,7 +11,10 @@ PERMISSION IS GRANTED to any individual to:
      including running it on hardware they own or control for the benefit of
      their own household.
 
-  2. Copy and modify the software for those same personal purposes.
+  2. Copy and modify the software for those same personal purposes, provided
+     every modified copy stays private to the person who made it. A modified
+     version carries exactly the same restrictions as the original, and may
+     never be shared with anyone.
 
 THE FOLLOWING ARE NOT PERMITTED without prior written permission from the
 copyright holder:
@@ -25,7 +28,8 @@ copyright holder:
 
   3. Distributing, publishing or making this software available to third
      parties, whether modified or unmodified, including as a hosted or
-     managed service.
+     managed service. This applies equally to any modified version, any
+     derivative work, and any part of the source code taken in isolation.
 
   4. Removing or altering this licence, the copyright notice, or any
      attribution contained in the software.

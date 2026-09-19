@@ -135,5 +135,7 @@ cannot store a split that does not reconcile.
 
 Personal use only. See [LICENSE](LICENSE).
 
-In short: run it for your own household, modify it as you like. Do not sell
-it, run it as a service for other people, or redistribute it.
+In short: run it for your own household and change your own copy however you
+like. Do not share it, publish it, sell it, or run it as a service for other
+people — and that applies to a modified version exactly as it does to this
+one.
