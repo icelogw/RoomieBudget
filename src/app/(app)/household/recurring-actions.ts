@@ -22,7 +22,7 @@ export async function toggleSeries(
     return { message: "That recurring bill no longer exists." };
   }
 
-  revalidatePath("/recurring");
+  revalidatePath("/household");
   return { notice: active ? "Resumed." : "Paused. Nothing more will be issued." };
 }
 
@@ -37,7 +37,7 @@ export async function removeSeries(
     return { message: "That recurring bill no longer exists." };
   }
 
-  revalidatePath("/recurring");
+  revalidatePath("/household");
   revalidatePath("/");
   return { notice: "Deleted. Bills it already issued are untouched." };
 }

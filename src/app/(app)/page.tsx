@@ -61,21 +61,13 @@ export default async function BillsPage() {
         title="Bills"
         description="Everything the household owes, newest first."
         action={
-          <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/recurring"
-              className="inline-flex h-10 items-center rounded-md border border-line-strong px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
-            >
-              Recurring
-            </Link>
-            <Link
-              href="/bills/new"
-              className="inline-flex h-10 items-center gap-1.5 rounded-md bg-accent px-3.5 text-sm font-medium text-accent-ink transition-colors hover:bg-accent-hover"
-            >
-              <PlusIcon className="h-4 w-4" />
-              Add bill
-            </Link>
-          </div>
+          <Link
+            href="/bills/new"
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-accent px-3.5 text-sm font-medium text-accent-ink transition-colors hover:bg-accent-hover"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Add bill
+          </Link>
         }
       />
 

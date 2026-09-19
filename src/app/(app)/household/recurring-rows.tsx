@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 
 import { Callout } from "@/components/ui";
-import { removeSeries, toggleSeries, type RecurringState } from "./actions";
+import { removeSeries, toggleSeries, type RecurringState } from "./recurring-actions";
 
 const INITIAL: RecurringState = {};
 
