@@ -9,10 +9,17 @@ import { requireUser } from "@/lib/auth/current-user";
 import { todayIso } from "@/lib/dates";
 import { fieldErrorsFrom, type FormState } from "@/lib/forms";
 import { MoneyError, parseAmount } from "@/lib/money";
+import { daysBetween } from "@/lib/dates";
+import { FREQUENCIES } from "@/lib/recurrence";
 import { parsePercent, type Split } from "@/lib/split";
 import { createBill, setShareSettled, voidBill } from "@/server/bills";
 import { notifyBillCreated } from "@/server/notifications";
-import { finaliseDraftBill } from "@/server/recurring";
+import {
+  createSeries,
+  finaliseDraftBill,
+  generateDueBills,
+  type SeriesParticipant,
+} from "@/server/recurring";
 
 export type BillFormState = FormState & { notice?: string };
 
@@ -74,6 +81,43 @@ function readSplit(formData: FormData, mode: string): Split {
   };
 }
 
+const FREQUENCY_VALUES = FREQUENCIES.map((f) => f.value);
+
+/**
+ * Express the chosen split as proportional weights, which is what a series
+ * stores.
+ *
+ * Percentages and hand-entered amounts both map exactly: while the total is
+ * the same each time, weights in the ratio of those figures reproduce them.
+ * When the amount varies, proportions are the only thing that can carry over.
+ */
+function splitAsSeries(split: Split): {
+  splitMode: "even" | "weights" | "single";
+  participants: SeriesParticipant[];
+} {
+  switch (split.mode) {
+    case "even":
+      return {
+        splitMode: "even",
+        participants: split.userIds.map((userId) => ({ userId, weight: 1 })),
+      };
+    case "single":
+      return { splitMode: "single", participants: [{ userId: split.userId, weight: 1 }] };
+    case "amount":
+      return {
+        splitMode: "weights",
+        participants: split.entries.map((e) => ({ userId: e.userId, weight: e.amountCents })),
+      };
+    case "percent":
+      return {
+        splitMode: "weights",
+        participants: split.entries.map((e) => ({ userId: e.userId, weight: e.basisPoints })),
+      };
+    case "weights":
+      return { splitMode: "weights", participants: split.entries };
+  }
+}
+
 export async function addBill(
   _previous: BillFormState,
   formData: FormData,
@@ -91,15 +135,21 @@ export async function addBill(
 
   if (!parsed.success) return { fieldErrors: fieldErrorsFrom(parsed.error) };
 
-  let totalCents: number;
-  try {
-    totalCents = parseAmount(String(formData.get("total") ?? ""));
-  } catch {
-    return { fieldErrors: { total: "Enter an amount, like 124.50" } };
-  }
+  // A repeating bill whose amount varies has no figure to give yet.
+  const amountOmitted =
+    formData.get("repeats") !== null && formData.get("amountVaries") !== null;
 
-  if (totalCents <= 0) {
-    return { fieldErrors: { total: "A bill must be more than zero" } };
+  let totalCents = 0;
+  if (!amountOmitted) {
+    try {
+      totalCents = parseAmount(String(formData.get("total") ?? ""));
+    } catch {
+      return { fieldErrors: { total: "Enter an amount, like 124.50" } };
+    }
+
+    if (totalCents <= 0) {
+      return { fieldErrors: { total: "A bill must be more than zero" } };
+    }
   }
 
   if (parsed.data.dueOn && parsed.data.dueOn < parsed.data.issuedOn) {
@@ -109,6 +159,19 @@ export async function addBill(
   // Who fronted the money. Defaults to whoever is entering the bill, which
   // is nearly always the same person.
   const paidBy = String(formData.get("paidBy") || user.id);
+
+  const repeats = formData.get("repeats") !== null;
+  const amountVaries = formData.get("amountVaries") !== null;
+
+  if (repeats) {
+    return addRecurring(formData, {
+      actorId: user.id,
+      paidBy,
+      amountVaries,
+      totalCents,
+      details: parsed.data,
+    });
+  }
 
   let billId: string;
   try {
@@ -203,4 +266,76 @@ export async function finaliseBill(
   revalidatePath("/balances");
   revalidatePath(`/bills/${billId}`);
   return { notice: "Amount set and split." };
+}
+
+/**
+ * Turn the bill form into a recurring series.
+ *
+ * The first bill is not created directly: the series is anchored on the issue
+ * date and the generator runs immediately, so a series starting today issues
+ * exactly one bill through the same path as every later one. Creating the
+ * first bill by hand would risk it differing from the rest.
+ */
+async function addRecurring(
+  formData: FormData,
+  context: {
+    actorId: string;
+    paidBy: string;
+    amountVaries: boolean;
+    totalCents: number;
+    details: {
+      description: string;
+      category?: string;
+      issuedOn: string;
+      dueOn: string;
+      notes?: string;
+      splitMode: "even" | "amount" | "percent" | "single";
+    };
+  },
+): Promise<BillFormState> {
+  const { details } = context;
+
+  const frequency = String(formData.get("frequency") ?? "monthly");
+  if (!FREQUENCY_VALUES.includes(frequency as (typeof FREQUENCY_VALUES)[number])) {
+    return { fieldErrors: { frequency: "Choose how often it repeats" } };
+  }
+
+  // The gap the person entered between issue and due becomes how long there is
+  // to pay each time, so there is no separate field to fill in.
+  const dueOffsetDays = details.dueOn
+    ? Math.max(0, Math.min(90, daysBetween(details.issuedOn, details.dueOn)))
+    : 14;
+
+  try {
+    const split = readSplit(formData, details.splitMode);
+    const { splitMode, participants } = splitAsSeries(split);
+
+    createSeries(getDb(), {
+      createdBy: context.actorId,
+      paidBy: context.paidBy,
+      description: details.description,
+      category: details.category || null,
+      amountMode: context.amountVaries ? "prompt" : "fixed",
+      totalCents: context.amountVaries ? null : context.totalCents,
+      frequency: frequency as (typeof FREQUENCY_VALUES)[number],
+      anchorDate: details.issuedOn,
+      dueOffsetDays,
+      splitMode,
+      participants,
+    });
+  } catch (error) {
+    if (error instanceof MoneyError) return { message: error.message };
+    return {
+      message:
+        error instanceof Error ? error.message : "That recurring bill could not be saved.",
+    };
+  }
+
+  // Issues the first bill now if the start date has arrived.
+  generateDueBills(getDb());
+
+  revalidatePath("/");
+  revalidatePath("/recurring");
+  revalidatePath("/balances");
+  redirect("/");
 }

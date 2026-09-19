@@ -193,6 +193,61 @@ describe("split by weights", () => {
   });
 });
 
+describe("converting a one-off split into a repeating one", () => {
+  /**
+   * A bill entered with percentages or exact amounts becomes a series stored
+   * as proportional weights. These pin that the conversion changes nothing:
+   * ticking "this repeats" must not quietly alter what anyone owes.
+   */
+
+  it("weights from basis points match the percentage split exactly", () => {
+    const entries = [
+      { userId: ALICE, basisPoints: 3333 },
+      { userId: BOB, basisPoints: 3333 },
+      { userId: CHARLIE, basisPoints: 3334 },
+    ];
+
+    for (const total of [10_000, 10_001, 24_755, 7, 99_999]) {
+      const asPercent = computeShares(total, { mode: "percent", entries });
+      const asWeights = computeShares(total, {
+        mode: "weights",
+        entries: entries.map((e) => ({ userId: e.userId, weight: e.basisPoints })),
+      });
+      expect(asWeights, `total ${total}`).toEqual(asPercent);
+    }
+  });
+
+  it("weights from exact amounts reproduce them while the total is unchanged", () => {
+    const entries = [
+      { userId: ALICE, amountCents: 2500 },
+      { userId: BOB, amountCents: 7500 },
+    ];
+
+    const asWeights = computeShares(10_000, {
+      mode: "weights",
+      entries: entries.map((e) => ({ userId: e.userId, weight: e.amountCents })),
+    });
+
+    expect(asWeights).toEqual(computeShares(10_000, { mode: "amount", entries }));
+  });
+
+  it("scales those proportions when a later amount differs", () => {
+    // The same 25/75 division applied to a bill twice the size.
+    const shares = computeShares(20_000, {
+      mode: "weights",
+      entries: [
+        { userId: ALICE, weight: 2500 },
+        { userId: BOB, weight: 7500 },
+      ],
+    });
+
+    expect(shares).toEqual([
+      { userId: ALICE, amountCents: 5000 },
+      { userId: BOB, amountCents: 15_000 },
+    ]);
+  });
+});
+
 describe("guards on the total", () => {
   it("refuses zero and negative bills", () => {
     expect(() => computeShares(0, { mode: "single", userId: ALICE })).toThrow(MoneyError);

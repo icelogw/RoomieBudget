@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom";
 import { Button, Callout, TextField } from "@/components/ui";
 import { EMPTY_FORM_STATE } from "@/lib/forms";
 import { formatAud, parseAmount } from "@/lib/money";
+import { FREQUENCIES } from "@/lib/recurrence";
 import { computeShares, parsePercent, type Split } from "@/lib/split";
 import { addBill, type BillFormState } from "../actions";
 
@@ -28,11 +29,11 @@ const MODES: Array<{ value: Mode; label: string; help: string }> = [
   { value: "single", label: "One person", help: "One person owes the whole thing." },
 ];
 
-function Submit() {
+function Submit({ repeats }: { repeats: boolean }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
-      {pending ? "Saving…" : "Add bill"}
+      {pending ? "Saving…" : repeats ? "Set up recurring bill" : "Add bill"}
     </Button>
   );
 }
@@ -56,11 +57,18 @@ export function BillForm({
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [percents, setPercents] = useState<Record<string, string>>({});
 
+  const [repeats, setRepeats] = useState(false);
+  const [amountVaries, setAmountVaries] = useState(false);
+
   const nameOf = useMemo(() => new Map(housemates.map((h) => [h.id, h.name])), [housemates]);
 
   function toggle(id: string) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
+
+  // A repeating bill whose amount changes has nothing to put in the total, and
+  // nothing to preview — the figure is filled in when each one arrives.
+  const amountUnknown = repeats && amountVaries;
 
   /**
    * A running preview of who owes what.
@@ -70,6 +78,8 @@ export function BillForm({
    * inputs and stores those.
    */
   const preview = useMemo(() => {
+    if (amountUnknown) return { kind: "unknown" as const };
+
     let totalCents: number;
     try {
       totalCents = parseAmount(total);
@@ -107,7 +117,7 @@ export function BillForm({
         message: error instanceof Error ? error.message : "That split does not work",
       };
     }
-  }, [total, mode, selected, single, amounts, percents]);
+  }, [amountUnknown, total, mode, selected, single, amounts, percents]);
 
   const perPersonInput = mode === "amount" || mode === "percent";
 
@@ -129,16 +139,18 @@ export function BillForm({
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField
-              label="Total amount"
-              name="total"
-              inputMode="decimal"
-              placeholder="0.00"
-              value={total}
-              onChange={(e) => setTotal(e.target.value)}
-              required
-              error={state.fieldErrors?.total}
-            />
+            {!amountUnknown && (
+              <TextField
+                label="Total amount"
+                name="total"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={total}
+                onChange={(e) => setTotal(e.target.value)}
+                required
+                error={state.fieldErrors?.total}
+              />
+            )}
             <TextField
               label="Category"
               name="category"
@@ -154,16 +166,78 @@ export function BillForm({
               name="issuedOn"
               type="date"
               defaultValue={today}
+              hint={repeats ? "The first one, and the day it lands on." : undefined}
               error={state.fieldErrors?.issuedOn}
             />
             <TextField
               label="Due on"
               name="dueOn"
               type="date"
-              hint="Optional. Drives reminders."
+              hint={
+                repeats
+                  ? "The gap becomes how long there is to pay each time."
+                  : "Optional. Drives reminders."
+              }
               error={state.fieldErrors?.dueOn}
             />
           </div>
+        </section>
+
+        <section className="p-4">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              name="repeats"
+              checked={repeats}
+              onChange={(e) => setRepeats(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+            />
+            <span>
+              <span className="block text-sm font-medium text-ink">This bill repeats</span>
+              <span className="mt-0.5 block text-xs text-ink-subtle">
+                Rent, internet, power — issued automatically each time it comes around.
+              </span>
+            </span>
+          </label>
+
+          {repeats && (
+            <div className="mt-4 space-y-4 border-l-2 border-accent-soft pl-4">
+              <div>
+                <label htmlFor="frequency" className="block text-sm font-medium text-ink">
+                  How often
+                </label>
+                <select
+                  id="frequency"
+                  name="frequency"
+                  defaultValue="monthly"
+                  className="mt-1.5 h-10 w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-ink sm:w-64"
+                >
+                  {FREQUENCIES.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  name="amountVaries"
+                  checked={amountVaries}
+                  onChange={(e) => setAmountVaries(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+                />
+                <span>
+                  <span className="block text-sm text-ink">The amount changes each time</span>
+                  <span className="mt-0.5 block text-xs text-ink-subtle">
+                    For power or water. Each bill appears on schedule with no figure, waiting
+                    for you to fill it in.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
         </section>
 
         <section className="p-4">
@@ -245,7 +319,7 @@ export function BillForm({
                     )}
                   </label>
 
-                  {perPersonInput && isOn && (
+                  {perPersonInput && isOn && !amountUnknown && (
                     <input
                       name={`${mode}:${person.id}`}
                       inputMode="decimal"
@@ -276,6 +350,12 @@ export function BillForm({
               <p className="text-xs text-ink-subtle">Enter an amount to see the split</p>
             )}
           </div>
+
+          {preview.kind === "unknown" && (
+            <p className="mt-2 text-sm text-ink-subtle">
+              Worked out each time, once you enter the amount for that bill.
+            </p>
+          )}
 
           {preview.kind === "problem" && (
             <div className="mt-3">
@@ -321,7 +401,7 @@ export function BillForm({
         </section>
       </div>
 
-      <Submit />
+      <Submit repeats={repeats} />
     </form>
   );
 }

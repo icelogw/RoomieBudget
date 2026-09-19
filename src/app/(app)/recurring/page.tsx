@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { asc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { users } from "@/db/schema";
 import { PageHeader } from "@/components/app-shell";
 import { Callout } from "@/components/ui";
 import { requireUser } from "@/lib/auth/current-user";
@@ -11,22 +9,16 @@ import { describeDueDate, formatCalendarDate, todayIso } from "@/lib/dates";
 import { formatAud } from "@/lib/money";
 import { describeFrequency } from "@/lib/recurrence";
 import { listSeries } from "@/server/recurring";
-import { SeriesForm, SeriesRow } from "./recurring-forms";
+import { SeriesRow } from "./recurring-forms";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Recurring" };
 
 export default async function RecurringPage() {
-  const user = await requireUser();
+  await requireUser();
   const db = getDb();
   const today = todayIso();
-
-  const housemates = await db
-    .select({ id: users.id, name: users.name })
-    .from(users)
-    .where(eq(users.isActive, true))
-    .orderBy(asc(users.name));
 
   const all = listSeries(db);
 
@@ -37,17 +29,19 @@ export default async function RecurringPage() {
         description="Bills that repeat. Each one is issued automatically on the day it is due."
         action={
           <Link
-            href="/"
-            className="shrink-0 text-sm text-ink-muted underline underline-offset-4 hover:text-ink"
+            href="/bills/new"
+            className="inline-flex h-10 shrink-0 items-center rounded-md border border-line-strong px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
           >
-            Back to bills
+            Add bill
           </Link>
         }
       />
 
       {all.length === 0 ? (
         <Callout>
-          Nothing repeats yet. Rent, internet and power are the usual candidates.
+          Nothing repeats yet. Add a bill and tick{" "}
+          <span className="font-medium">This bill repeats</span> — rent, internet and power
+          are the usual candidates.
         </Callout>
       ) : (
         <section className="overflow-hidden rounded-lg border border-line bg-surface">
@@ -88,13 +82,14 @@ export default async function RecurringPage() {
         </section>
       )}
 
-      <section className="mt-6 rounded-lg border border-line bg-surface p-4">
-        <h2 className="text-sm font-semibold text-ink">Add a recurring bill</h2>
-        <p className="mb-4 mt-1 text-sm text-ink-muted">
-          It will be issued on schedule and split the same way every time.
-        </p>
-        <SeriesForm housemates={housemates} currentUserId={user.id} today={today} />
-      </section>
+      <p className="mt-5 text-xs leading-relaxed text-ink-subtle">
+        Set one up from{" "}
+        <Link href="/bills/new" className="text-accent underline underline-offset-4">
+          Add bill
+        </Link>{" "}
+        by ticking &ldquo;This bill repeats&rdquo;. Pausing holds a series without deleting
+        it; deleting leaves the bills it already issued untouched.
+      </p>
     </>
   );
 }
