@@ -1,0 +1,52 @@
+# Development. Everything runs in the container, so there is no need for Node
+# on the host and no chance of dev and production disagreeing.
+#
+#   docker compose -f docker-compose.dev.yml up
+#
+# Source is bind-mounted, so edits on the host reload in the container.
+
+services:
+  dev:
+    build:
+      context: .
+      target: dev
+    container_name: roomiebudget-dev
+
+    # Turbopack has no polling mode, and bind mounts on Windows and macOS do
+    # not deliver inotify events — so it never sees a host edit. webpack does
+    # support polling, which is the only watcher that works through a bind
+    # mount. Slower to compile, but it actually reloads.
+    command: npx next dev --webpack -H 0.0.0.0
+
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATA_DIR: /data
+      TZ: ${TZ:-Australia/Sydney}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+
+      # Bind mounts on Windows and macOS do not deliver inotify events, so the
+      # dev server never sees a file change. Polling is slower but is the only
+      # thing that works reliably across hosts.
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+
+    volumes:
+      # The project, so edits on the host are visible inside the container.
+      - .:/app
+
+      # These two must be container-owned, not bind-mounted from the host.
+      # node_modules holds Linux-native binaries for better-sqlite3 and argon2;
+      # letting the host's Windows build shadow them crashes the server on
+      # boot. .next is excluded for speed and for the same cross-platform
+      # reason.
+      - node_modules:/app/node_modules
+      - next_cache:/app/.next
+
+      # The database, kept on the host so it survives a rebuild.
+      - ./data:/data
+
+volumes:
+  node_modules:
+  next_cache:

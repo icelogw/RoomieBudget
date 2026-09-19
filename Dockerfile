@@ -1,21 +1,44 @@
 # syntax=docker/dockerfile:1
 
-# Debian rather than Alpine. better-sqlite3 and @node-rs/argon2 both publish
-# prebuilt binaries for glibc; on musl they would be compiled from source,
-# which means shipping a toolchain and a far slower build for no benefit.
+# Debian rather than Alpine. better-sqlite3 and @node-rs/argon2 publish
+# prebuilt binaries for glibc; on musl they are always compiled from source,
+# which means a slower build and a toolchain in every stage for no benefit.
 
+# ---------------------------------------------------------------- base deps --
 FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 
 # better-sqlite3 falls back to compiling from source whenever prebuild-install
-# cannot match the exact Node ABI. Carrying a toolchain in this stage makes the
-# build work either way; none of it reaches the runtime image.
-RUN apt-get update  && apt-get install -y --no-install-recommends python3 make g++ ca-certificates  && rm -rf /var/lib/apt/lists/*
+# cannot match the exact Node ABI, which it cannot here. The toolchain lives in
+# this stage only and never reaches the runtime image.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
 RUN npm ci
 
 
+# ---------------------------------------------------------------- dev image --
+# Used by docker-compose.dev.yml. Source is bind-mounted over /app at runtime,
+# so this stage holds only the dependencies and the toolchain to build them.
+FROM deps AS dev
+
+ENV NODE_ENV=development \
+    NEXT_TELEMETRY_DISABLED=1 \
+    DATA_DIR=/data \
+    PORT=3000
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tzdata \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /data
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+
+
+# ------------------------------------------------------------------- build ---
 FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -24,6 +47,7 @@ COPY . .
 RUN npm run build
 
 
+# ----------------------------------------------------------------- runtime ---
 FROM node:24-bookworm-slim AS runner
 WORKDIR /app
 
@@ -45,8 +69,8 @@ RUN apt-get update \
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 
-# Migrations are read at runtime from ./drizzle and are not part of the
-# traced bundle, so they must be copied explicitly.
+# Migrations are read from ./drizzle at runtime and are not part of the traced
+# bundle, so they must be copied explicitly.
 COPY --from=builder --chown=node:node /app/drizzle ./drizzle
 
 # The image's own /data is a fallback for running without a volume. A real

@@ -1,0 +1,77 @@
+"use server";
+
+import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+
+import { getDb } from "@/db";
+import { users } from "@/db/schema";
+import { setSessionCookie } from "@/lib/auth/cookies";
+import { fakeVerify, verifyPassword } from "@/lib/auth/password";
+import { checkLoginAttempt, clearAttempts, recordFailedAttempt } from "@/lib/auth/rate-limit";
+import { createSession } from "@/lib/auth/session";
+import { fieldErrorsFrom, type FormState } from "@/lib/forms";
+
+const schema = z.object({
+  email: z.email("Enter a valid email address").max(200),
+  password: z.string().min(1, "Enter your password").max(200),
+});
+
+/**
+ * One message for every failure.
+ *
+ * "No such account" and "wrong password" would tell an outsider who lives
+ * here, and a housemate which address their flatmate signed up with.
+ */
+const GENERIC_FAILURE = "Email or password is incorrect.";
+
+export async function signIn(_previous: FormState, formData: FormData): Promise<FormState> {
+  const parsed = schema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: fieldErrorsFrom(parsed.error) };
+  }
+
+  const email = parsed.data.email.toLowerCase();
+
+  const throttle = checkLoginAttempt(email);
+  if (!throttle.allowed) {
+    return {
+      message:
+        `Too many attempts. Try again in ${throttle.retryAfterMinutes} ` +
+        `minute${throttle.retryAfterMinutes === 1 ? "" : "s"}.`,
+    };
+  }
+
+  const db = getDb();
+  const user = db.select().from(users).where(eq(users.email, email)).get();
+
+  if (!user) {
+    // Burn comparable time so a missing account does not answer faster than a
+    // wrong password.
+    await fakeVerify();
+    recordFailedAttempt(email);
+    return { message: GENERIC_FAILURE };
+  }
+
+  const passwordMatches = await verifyPassword(user.passwordHash, parsed.data.password);
+
+  // A deactivated housemate is told the same thing as a wrong password: they
+  // have no route back in, and the distinction would only invite argument.
+  if (!passwordMatches || !user.isActive) {
+    recordFailedAttempt(email);
+    return { message: GENERIC_FAILURE };
+  }
+
+  clearAttempts(email);
+
+  const userAgent = (await headers()).get("user-agent") ?? undefined;
+  const session = createSession(db, user.id, userAgent);
+  await setSessionCookie(session.token, session.expiresAt);
+
+  redirect("/");
+}
