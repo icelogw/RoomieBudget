@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 
 import { Button, Callout, TextField } from "@/components/ui";
 import { EMPTY_FORM_STATE } from "@/lib/forms";
-import { signIn } from "./actions";
+import { signIn, type LoginState } from "./actions";
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -17,7 +17,7 @@ function Submit() {
 }
 
 export function LoginForm() {
-  const [state, action] = useActionState(signIn, EMPTY_FORM_STATE);
+  const [state, action] = useActionState(signIn, EMPTY_FORM_STATE as LoginState);
 
   return (
     <form action={action} className="space-y-4">
@@ -30,6 +30,9 @@ export function LoginForm() {
         autoComplete="email"
         required
         autoFocus
+        // Kept across a failed attempt, so only the password needs retyping.
+        defaultValue={state.email}
+        key={state.email}
         error={state.fieldErrors?.email}
       />
 

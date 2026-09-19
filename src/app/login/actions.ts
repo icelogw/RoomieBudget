@@ -13,6 +13,15 @@ import { checkLoginAttempt, clearAttempts, recordFailedAttempt } from "@/lib/aut
 import { createSession } from "@/lib/auth/session";
 import { fieldErrorsFrom, type FormState } from "@/lib/forms";
 
+/**
+ * A failed sign-in hands the email back so the form can keep it.
+ *
+ * Retyping an address to correct a password is pure friction, and it is worse
+ * when the reason for the failure is that the browser autofilled the wrong
+ * account: the field clearing gives no clue that is what happened.
+ */
+export type LoginState = FormState & { email?: string };
+
 const schema = z.object({
   email: z.email("Enter a valid email address").max(200),
   password: z.string().min(1, "Enter your password").max(200),
@@ -26,14 +35,16 @@ const schema = z.object({
  */
 const GENERIC_FAILURE = "Email or password is incorrect.";
 
-export async function signIn(_previous: FormState, formData: FormData): Promise<FormState> {
+export async function signIn(_previous: LoginState, formData: FormData): Promise<LoginState> {
+  const submittedEmail = String(formData.get("email") ?? "");
+
   const parsed = schema.safeParse({
-    email: formData.get("email"),
+    email: submittedEmail,
     password: formData.get("password"),
   });
 
   if (!parsed.success) {
-    return { fieldErrors: fieldErrorsFrom(parsed.error) };
+    return { fieldErrors: fieldErrorsFrom(parsed.error), email: submittedEmail };
   }
 
   const email = parsed.data.email.toLowerCase();
@@ -44,6 +55,7 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
       message:
         `Too many attempts. Try again in ${throttle.retryAfterMinutes} ` +
         `minute${throttle.retryAfterMinutes === 1 ? "" : "s"}.`,
+      email: submittedEmail,
     };
   }
 
@@ -55,7 +67,7 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
     // wrong password.
     await fakeVerify();
     recordFailedAttempt(email);
-    return { message: GENERIC_FAILURE };
+    return { message: GENERIC_FAILURE, email: submittedEmail };
   }
 
   const passwordMatches = await verifyPassword(user.passwordHash, parsed.data.password);
@@ -64,7 +76,7 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
   // have no route back in, and the distinction would only invite argument.
   if (!passwordMatches || !user.isActive) {
     recordFailedAttempt(email);
-    return { message: GENERIC_FAILURE };
+    return { message: GENERIC_FAILURE, email: submittedEmail };
   }
 
   clearAttempts(email);
