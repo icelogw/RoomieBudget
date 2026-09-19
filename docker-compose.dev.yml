@@ -57,41 +57,6 @@ services:
     depends_on:
       - mailpit
 
-  # A second copy of the app on its own database, filled with a plausible
-  # sharehouse. Lets the interface be judged with real content in it without
-  # putting demo bills anywhere near ./data.
-  #
-  #   npm run seed:demo   (fills ./data-demo)
-  #   npm run demo        (serves it on :3001)
-  #
-  # Behind a profile so it never starts with the normal dev stack.
-  demo:
-    profiles: ["demo"]
-    build:
-      context: .
-      target: dev
-    container_name: roomiebudget-demo
-    command: npx next dev --webpack -H 0.0.0.0
-    ports:
-      - "3001:3000"
-    environment:
-      NODE_ENV: development
-      DATA_DIR: /data
-      TZ: ${TZ:-Australia/Sydney}
-      APP_URL: http://localhost:3001
-      WATCHPACK_POLLING: "true"
-      CHOKIDAR_USEPOLLING: "true"
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
-      MAIL_FROM: no-reply@roomiebudget.local
-    volumes:
-      - .:/app
-      - node_modules:/app/node_modules
-      - demo_next_cache:/app/.next
-      - ./data-demo:/data
-    depends_on:
-      - mailpit
-
   # Development only. Catches every outgoing email and shows it in a web
   # inbox, so notification changes can be checked without sending anything to
   # a real address or configuring a relay.
@@ -106,4 +71,3 @@ services:
 volumes:
   node_modules:
   next_cache:
-  demo_next_cache:

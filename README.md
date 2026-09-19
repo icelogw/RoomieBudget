@@ -128,8 +128,6 @@ mail goes to [Mailpit](http://localhost:8025) and never leaves the machine.
 npm test                # 186 tests
 npm run typecheck
 npm run mail:preview    # send one of each email template to the catcher
-npm run seed:demo       # fill ./data-demo with a plausible sharehouse
-npm run demo            # serve that on :3001, alongside the real one
 ```
 
 ### How it is put together
