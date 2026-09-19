@@ -117,6 +117,17 @@ export async function renameHousehold(
 }
 
 /**
+ * Whether outgoing mail is being captured locally rather than delivered.
+ *
+ * Worth saying out loud: a message that sends perfectly into a catcher looks
+ * identical to one that reached an inbox, and the difference is the whole
+ * question being asked.
+ */
+function isLocalCatcher(host: string | undefined): boolean {
+  return host === "mailpit" || host === "localhost" || host === "127.0.0.1";
+}
+
+/**
  * Send a test message to whoever clicked the button.
  *
  * Self-hosted mail configuration is guesswork until something actually goes
@@ -165,7 +176,14 @@ export async function sendTestEmail(
   });
 
   if (result === "sent") {
-    return { notice: `Sent to ${admin.email}. Check that it arrives.` };
+    const env = getEnv();
+    return {
+      notice:
+        `Handed to ${env.SMTP_HOST}:${env.SMTP_PORT} for ${admin.email}. ` +
+        (isLocalCatcher(env.SMTP_HOST)
+          ? "That is the development mail catcher, so it will not reach a real inbox — read it at http://localhost:8025."
+          : "Check that it arrives."),
+    };
   }
 
   if (result === "failed") {

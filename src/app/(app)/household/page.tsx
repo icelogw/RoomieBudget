@@ -18,6 +18,9 @@ import {
   TestEmailForm,
 } from "./settings-forms";
 
+/** Relays that swallow mail rather than delivering it. */
+const LOCAL_MAIL_HOSTS = new Set(["mailpit", "localhost", "127.0.0.1"]);
+
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Household" };
@@ -154,6 +157,13 @@ export default async function HouseholdPage() {
                         <dt className="text-ink-subtle">From</dt>
                         <dd className="truncate text-ink-muted">{getEnv().MAIL_FROM}</dd>
                       </dl>
+                      {LOCAL_MAIL_HOSTS.has(getEnv().SMTP_HOST ?? "") && (
+                        <p className="mb-3 rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs leading-relaxed text-warn">
+                          This relay is the development mail catcher. Messages are captured
+                          and never delivered, so nothing reaches a real inbox — read them
+                          at http://localhost:8025.
+                        </p>
+                      )}
                       <TestEmailForm to={user.email} />
                     </>
                   ) : (
