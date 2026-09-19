@@ -140,11 +140,3 @@ export function parsePercent(input: string): number {
   }
   return basisPoints;
 }
-
-export function formatPercent(basisPoints: number): string {
-  const whole = Math.trunc(basisPoints / 100);
-  const fraction = basisPoints % 100;
-  return fraction === 0
-    ? `${whole}%`
-    : `${whole}.${String(fraction).padStart(2, "0").replace(/0$/, "")}%`;
-}

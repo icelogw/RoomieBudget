@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MoneyError } from "./money";
-import { computeShares, formatPercent, parsePercent, type Split } from "./split";
+import { computeShares, parsePercent, type Split } from "./split";
 
 const ALICE = "alice";
 const BOB = "bob";
@@ -274,11 +274,5 @@ describe("percent parsing", () => {
     for (const bad of ["", "abc", "-5", "101", "33.333", "1e2"]) {
       expect(() => parsePercent(bad), bad).toThrow(MoneyError);
     }
-  });
-
-  it("round-trips through formatting", () => {
-    expect(formatPercent(5000)).toBe("50%");
-    expect(formatPercent(3333)).toBe("33.33%");
-    expect(formatPercent(1250)).toBe("12.5%");
   });
 });

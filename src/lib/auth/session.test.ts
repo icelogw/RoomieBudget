@@ -11,7 +11,6 @@ import {
   generateSessionToken,
   invalidateAllSessionsForUser,
   invalidateSession,
-  safeEquals,
   sessionIdFor,
   tokenToId,
   validateSessionToken,
@@ -184,14 +183,5 @@ describe("SESSION_SECRET", () => {
 
     expect(id).not.toContain(token);
     expect(id).toHaveLength(64);
-  });
-});
-
-describe("safeEquals", () => {
-  it("matches identical strings and rejects everything else", () => {
-    expect(safeEquals("abc123", "abc123")).toBe(true);
-    expect(safeEquals("abc123", "abc124")).toBe(false);
-    expect(safeEquals("abc", "abcdef")).toBe(false);
-    expect(safeEquals("", "")).toBe(true);
   });
 });

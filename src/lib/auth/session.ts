@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { eq, lt } from "drizzle-orm";
 
 import type { Db } from "@/db/connection";
@@ -127,18 +127,6 @@ export function invalidateAllSessionsForUser(db: Db, userId: string): void {
 export function deleteExpiredSessions(db: Db): number {
   const result = db.delete(sessions).where(lt(sessions.expiresAt, new Date())).run();
   return result.changes;
-}
-
-/**
- * Constant-time comparison for short secrets such as invite tokens, where the
- * value being compared is low enough entropy that response timing could
- * otherwise leak a prefix.
- */
-export function safeEquals(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
 }
 
 export { tokenToId, SESSION_TTL_MS };

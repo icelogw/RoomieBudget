@@ -8,7 +8,6 @@ import {
   getBill,
   listBills,
   setShareSettled,
-  settleAllForUser,
   voidBill,
 } from "./bills";
 
@@ -159,42 +158,6 @@ describe("settling", () => {
     voidBill(db, { billId: id, actor: { id: alice, role: "admin" }, reason: "Entered twice" });
 
     expect(setShareSettled(db, { shareId: share.id, actorId: bob, settled: true })).toBe(false);
-  });
-});
-
-describe("settleAllForUser", () => {
-  it("clears everything one person owes, across bills", () => {
-    newBill(10_000);
-    newBill(6000);
-
-    expect(settleAllForUser(db, { userId: bob, actorId: alice })).toBe(2);
-
-    const stillOwed = listBills(db)
-      .flatMap((b) => b.shares)
-      .filter((s) => s.name === "Bob" && s.settledAt === null);
-    expect(stillOwed).toHaveLength(0);
-  });
-
-  it("leaves other people alone", () => {
-    // Charlie paid, so both Alice and Bob owe a share; settling Bob's must
-    // not touch Alice's.
-    newBill(9000, [alice, bob, charlie], charlie);
-    settleAllForUser(db, { userId: bob, actorId: charlie });
-
-    const aliceShare = listBills(db)[0].shares.find((s) => s.name === "Alice")!;
-    expect(aliceShare.settledAt).toBeNull();
-  });
-
-  it("ignores shares on voided bills", () => {
-    const voided = newBill(10_000);
-    voidBill(db, { billId: voided, actor: { id: alice, role: "admin" }, reason: "Duplicate" });
-    newBill(4000);
-
-    expect(settleAllForUser(db, { userId: bob, actorId: alice })).toBe(1);
-  });
-
-  it("reports nothing to do when there is nothing outstanding", () => {
-    expect(settleAllForUser(db, { userId: bob, actorId: alice })).toBe(0);
   });
 });
 

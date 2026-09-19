@@ -236,15 +236,12 @@ export const emailLog = sqliteTable(
   {
     id: text("id").primaryKey(),
     dedupeKey: text("dedupe_key").notNull(),
+    // Only what is actually sent. The column is plain TEXT — a Drizzle enum
+    // on SQLite constrains the types and not the table — so this list can
+    // change without a migration, and a value that was never written needs no
+    // backfill.
     kind: text("kind", {
-      enum: [
-        "invite",
-        "bill_created",
-        "bill_due_soon",
-        "bill_overdue",
-        "bill_settled",
-        "weekly_summary",
-      ],
+      enum: ["invite", "bill_created", "bill_due_soon", "bill_overdue"],
     }).notNull(),
     toEmail: text("to_email").notNull(),
     subject: text("subject").notNull(),

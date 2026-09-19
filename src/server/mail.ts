@@ -19,13 +19,7 @@ import { newId } from "@/lib/ids";
  * because a mail relay has not been set up yet.
  */
 
-export type MailKind =
-  | "invite"
-  | "bill_created"
-  | "bill_due_soon"
-  | "bill_overdue"
-  | "bill_settled"
-  | "weekly_summary";
+export type MailKind = "invite" | "bill_created" | "bill_due_soon" | "bill_overdue";
 
 /** Only the one method is used, which keeps the test seam below honest. */
 type MailTransport = Pick<Transporter, "sendMail">;

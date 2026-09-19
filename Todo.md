@@ -7,7 +7,7 @@ TrueNAS. Tracks who owes what, emails people about it, and never touches money.
 
 **In scope**
 - Enter a bill, split it, see who owes what, mark it settled.
-- No-reply email: new bill, reminder before due, overdue nudge, weekly summary.
+- No-reply email: new bill, reminder before due, overdue nudge.
 - Recurring bills (rent, power, internet) generated on schedule.
 - Netted balances with one-tap settle-up between two people.
 - History with search, filters, and CSV export.

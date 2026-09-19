@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { desc, eq, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 
 import type { Db } from "@/db/connection";
@@ -307,53 +307,6 @@ export function setShareSettled(
       .run();
 
     return true;
-  });
-}
-
-/** Settle every outstanding share one person owes, across all bills. */
-export function settleAllForUser(
-  db: Db,
-  input: { userId: string; actorId: string },
-): number {
-  return db.transaction((tx) => {
-    const outstanding = tx
-      .select({ id: billShares.id, amountCents: billShares.amountCents })
-      .from(billShares)
-      .innerJoin(bills, eq(billShares.billId, bills.id))
-      .where(
-        and(
-          eq(billShares.userId, input.userId),
-          isNull(billShares.settledAt),
-          isNull(bills.voidedAt),
-        ),
-      )
-      .all();
-
-    if (outstanding.length === 0) return 0;
-
-    const now = new Date();
-    for (const share of outstanding) {
-      tx.update(billShares)
-        .set({ settledAt: now, settledBy: input.actorId })
-        .where(eq(billShares.id, share.id))
-        .run();
-    }
-
-    tx.insert(auditLog)
-      .values({
-        id: newId(),
-        actorId: input.actorId,
-        action: "shares.settled_all",
-        entityType: "user",
-        entityId: input.userId,
-        detail: JSON.stringify({
-          count: outstanding.length,
-          totalCents: outstanding.reduce((acc, s) => acc + s.amountCents, 0),
-        }),
-      })
-      .run();
-
-    return outstanding.length;
   });
 }
 
