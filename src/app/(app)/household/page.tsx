@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { asc, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
@@ -37,9 +38,17 @@ export default async function HouseholdPage() {
       <PageHeader
         title="Household"
         description={
-          isAdmin
-            ? "Who lives here, and who has been invited."
-            : "Who lives here."
+          isAdmin ? "Who lives here, and who has been invited." : "Who lives here."
+        }
+        action={
+          isAdmin ? (
+            <Link
+              href="/household/settings"
+              className="inline-flex h-10 shrink-0 items-center rounded-md border border-line-strong px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
+            >
+              House settings
+            </Link>
+          ) : undefined
         }
       />
 

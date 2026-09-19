@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 
+import { getDb } from "@/db";
 import { APP_NAME } from "@/lib/app";
 import { signOut } from "@/lib/auth/actions";
 import type { AuthenticatedUser } from "@/lib/auth/session";
 import { getDevice } from "@/lib/device";
+import { householdName } from "@/server/household";
 import { SidebarNav, TabBar } from "./nav";
 
 /**
@@ -22,19 +24,33 @@ export async function AppShell({
   children: ReactNode;
 }) {
   const device = await getDevice();
+  const name = householdName(getDb());
+
   return device === "mobile" ? (
-    <MobileShell user={user}>{children}</MobileShell>
+    <MobileShell user={user} name={name}>
+      {children}
+    </MobileShell>
   ) : (
-    <DesktopShell user={user}>{children}</DesktopShell>
+    <DesktopShell user={user} name={name}>
+      {children}
+    </DesktopShell>
   );
 }
 
-function MobileShell({ user, children }: { user: AuthenticatedUser; children: ReactNode }) {
+function MobileShell({
+  user,
+  name,
+  children,
+}: {
+  user: AuthenticatedUser;
+  name: string;
+  children: ReactNode;
+}) {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 border-b border-line bg-paper/85 px-4 py-3 backdrop-blur">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm font-semibold tracking-tight text-ink">{APP_NAME}</p>
+          <p className="truncate text-sm font-semibold tracking-tight text-ink">{name}</p>
           <p className="truncate text-xs text-ink-subtle">{user.name}</p>
         </div>
       </header>
@@ -47,11 +63,22 @@ function MobileShell({ user, children }: { user: AuthenticatedUser; children: Re
   );
 }
 
-function DesktopShell({ user, children }: { user: AuthenticatedUser; children: ReactNode }) {
+function DesktopShell({
+  user,
+  name,
+  children,
+}: {
+  user: AuthenticatedUser;
+  name: string;
+  children: ReactNode;
+}) {
   return (
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 flex h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface px-3 py-5">
-        <p className="px-2.5 text-sm font-semibold tracking-tight text-ink">{APP_NAME}</p>
+        <p className="truncate px-2.5 text-sm font-semibold tracking-tight text-ink">{name}</p>
+        {name !== APP_NAME && (
+          <p className="truncate px-2.5 text-2xs text-ink-subtle">{APP_NAME}</p>
+        )}
 
         <div className="mt-6 flex-1">
           <SidebarNav />

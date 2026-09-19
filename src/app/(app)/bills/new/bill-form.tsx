@@ -40,10 +40,12 @@ function Submit({ repeats }: { repeats: boolean }) {
 
 export function BillForm({
   housemates,
+  categories,
   currentUserId,
   today,
 }: {
   housemates: Housemate[];
+  categories: string[];
   currentUserId: string;
   today: string;
 }) {
@@ -151,13 +153,27 @@ export function BillForm({
                 error={state.fieldErrors?.total}
               />
             )}
-            <TextField
-              label="Category"
-              name="category"
-              placeholder="Utilities"
-              hint="Optional."
-              error={state.fieldErrors?.category}
-            />
+            <div>
+              <label htmlFor="category" className="block text-sm font-medium text-ink">
+                Category
+              </label>
+              <select
+                id="category"
+                name="category"
+                defaultValue=""
+                className="mt-1.5 h-10 w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-ink"
+              >
+                <option value="">No category</option>
+                {categories.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              {state.fieldErrors?.category && (
+                <p className="mt-1.5 text-xs text-danger">{state.fieldErrors.category}</p>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

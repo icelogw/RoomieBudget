@@ -271,6 +271,25 @@ export const auditLog = sqliteTable(
   (t) => [index("audit_entity_idx").on(t.entityType, t.entityId)],
 );
 
+/**
+ * The category list behind the dropdown on a bill.
+ *
+ * Bills keep their category as plain text rather than a foreign key: it is a
+ * snapshot of what was chosen at the time, so renaming or deleting a category
+ * later cannot rewrite history or orphan an old bill.
+ */
+export const categories = sqliteTable(
+  "categories",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    // Manual ordering, so the ones a household uses most can sit at the top.
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [unique("categories_name_unique").on(t.name)],
+);
+
 /** Household-level preferences, editable from the UI. */
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
@@ -278,6 +297,7 @@ export const settings = sqliteTable("settings", {
   updatedAt: timestamps.updatedAt,
 });
 
+export type Category = typeof categories.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Bill = typeof bills.$inferSelect;
 export type BillShare = typeof billShares.$inferSelect;

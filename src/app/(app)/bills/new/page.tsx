@@ -6,6 +6,7 @@ import { users } from "@/db/schema";
 import { PageHeader } from "@/components/app-shell";
 import { requireUser } from "@/lib/auth/current-user";
 import { todayIso } from "@/lib/dates";
+import { listCategories } from "@/server/household";
 import { BillForm } from "./bill-form";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +24,17 @@ export default async function NewBillPage() {
     .where(eq(users.isActive, true))
     .orderBy(asc(users.name));
 
+  const categories = listCategories(getDb()).map((c) => c.name);
+
   return (
     <>
       <PageHeader title="Add a bill" description="Enter what it cost and how it is divided." />
-      <BillForm housemates={housemates} currentUserId={user.id} today={todayIso()} />
+      <BillForm
+        housemates={housemates}
+        categories={categories}
+        currentUserId={user.id}
+        today={todayIso()}
+      />
     </>
   );
 }
