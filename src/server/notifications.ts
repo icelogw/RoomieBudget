@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, gte, isNull, ne } from "drizzle-orm";
 
 import type { Db } from "@/db/connection";
 import { billShares, bills, users } from "@/db/schema";
@@ -50,52 +50,94 @@ function debtorsFor(db: Db, billId: string): Recipient[] {
 }
 
 /**
+ * How long a new-bill notice is worth retrying for.
+ *
+ * Past this the bill is no longer news, and the due-soon reminder covers it.
+ */
+const NEW_BILL_RETRY_HOURS = 48;
+
+/**
  * Tell people a bill has been added and what they owe.
  *
- * Fire and forget: a mail relay being slow or down must not make adding a bill
- * fail or feel sluggish. Failures are logged and recorded in email_log.
+ * Safe to call again for the same bill: the dedupe key is the record of
+ * whether somebody has already been told, so a repeat is refused rather than
+ * duplicated. That is what lets the scheduler retry one that failed.
+ */
+export async function sendBillCreatedNotices(db: Db, billId: string): Promise<void> {
+  const bill = db.select().from(bills).where(eq(bills.id, billId)).get();
+  if (!bill || bill.voidedAt || bill.isDraft) return;
+
+  const payer = bill.paidBy
+    ? db.select().from(users).where(eq(users.id, bill.paidBy)).get()
+    : null;
+
+  for (const person of debtorsFor(db, billId)) {
+    const content = {
+      heading: `${bill.description} — you owe ${formatAud(person.amountCents)}`,
+      intro: payer
+        ? `${payer.name} paid ${formatAud(bill.totalCents)} for ${bill.description}. Your share is ${formatAud(person.amountCents)}.`
+        : `A bill for ${bill.description} has been added. Your share is ${formatAud(person.amountCents)}.`,
+      rows: [
+        { label: "Bill total", value: formatAud(bill.totalCents) },
+        { label: "Your share", value: formatAud(person.amountCents) },
+        ...(bill.dueOn ? [{ label: "Due", value: formatCalendarDate(bill.dueOn) }] : []),
+        ...(payer ? [{ label: "Paid by", value: payer.name }] : []),
+      ],
+      button: { label: "Open the bill", url: appUrl(`/bills/${billId}`) },
+    };
+
+    await sendMail(db, {
+      kind: "bill_created",
+      to: person.email,
+      subject: `${bill.description} — ${formatAud(person.amountCents)}`,
+      html: layout(content),
+      text: plain(content),
+      dedupeKey: `bill_created:${billId}:${person.userId}`,
+      entityId: billId,
+    });
+  }
+}
+
+/**
+ * Fire and forget, for the path where somebody has just pressed save.
+ *
+ * A mail relay being slow or down must not make adding a bill fail or feel
+ * sluggish. Failures are logged and recorded in email_log, and the scheduler
+ * picks them up.
  */
 export function notifyBillCreated(db: Db, billId: string): void {
-  void (async () => {
+  void sendBillCreatedNotices(db, billId).catch((error) => {
+    console.error("Bill notification failed:", error);
+  });
+}
+
+/**
+ * Retry new-bill notices that did not get out.
+ *
+ * A failed send frees its dedupe key, but nothing re-triggers a new-bill
+ * notice the way the reminder pass re-derives due and overdue ones from
+ * current state — so without this, freeing the key would achieve nothing for
+ * the one kind of message that cannot recover on its own.
+ *
+ * Bills already notified return "duplicate" and cost one query each, so this
+ * is safe to run on every tick.
+ */
+export async function retryRecentBillNotices(db: Db): Promise<void> {
+  const since = new Date(Date.now() - NEW_BILL_RETRY_HOURS * 60 * 60 * 1000);
+
+  const recent = db
+    .select({ id: bills.id })
+    .from(bills)
+    .where(and(gte(bills.createdAt, since), isNull(bills.voidedAt), eq(bills.isDraft, false)))
+    .all();
+
+  for (const bill of recent) {
     try {
-      const bill = db.select().from(bills).where(eq(bills.id, billId)).get();
-      if (!bill || bill.voidedAt || bill.isDraft) return;
-
-      const payer = bill.paidBy
-        ? db.select().from(users).where(eq(users.id, bill.paidBy)).get()
-        : null;
-
-      for (const person of debtorsFor(db, billId)) {
-        const content = {
-          heading: `${bill.description} — you owe ${formatAud(person.amountCents)}`,
-          intro: payer
-            ? `${payer.name} paid ${formatAud(bill.totalCents)} for ${bill.description}. Your share is ${formatAud(person.amountCents)}.`
-            : `A bill for ${bill.description} has been added. Your share is ${formatAud(person.amountCents)}.`,
-          rows: [
-            { label: "Bill total", value: formatAud(bill.totalCents) },
-            { label: "Your share", value: formatAud(person.amountCents) },
-            ...(bill.dueOn
-              ? [{ label: "Due", value: formatCalendarDate(bill.dueOn) }]
-              : []),
-            ...(payer ? [{ label: "Paid by", value: payer.name }] : []),
-          ],
-          button: { label: "Open the bill", url: appUrl(`/bills/${billId}`) },
-        };
-
-        await sendMail(db, {
-          kind: "bill_created",
-          to: person.email,
-          subject: `${bill.description} — ${formatAud(person.amountCents)}`,
-          html: layout(content),
-          text: plain(content),
-          dedupeKey: `bill_created:${billId}:${person.userId}`,
-          entityId: billId,
-        });
-      }
+      await sendBillCreatedNotices(db, bill.id);
     } catch (error) {
-      console.error("Bill notification failed:", error);
+      console.error(`Retrying notices for bill ${bill.id} failed:`, error);
     }
-  })();
+  }
 }
 
 export type ReminderResult = { dueSoon: number; overdue: number };

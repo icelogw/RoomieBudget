@@ -1,10 +1,10 @@
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { openDatabase, type Db } from "@/db/connection";
 import { emailLog, users } from "@/db/schema";
 import { newId } from "@/lib/ids";
 import { layout, plain } from "./mail-templates";
-import { sendMail } from "./mail";
+import { sendMail, setMailTransport } from "./mail";
 
 /**
  * These talk to the Mailpit container from docker-compose.dev.yml, so they
@@ -162,5 +162,95 @@ describe("sending", () => {
     expect(await sendMail(db, message(to, `week:1:${to}`))).toBe("sent");
 
     expect(db.select().from(emailLog).all()).toHaveLength(2);
+  });
+});
+
+describe("a failed send", () => {
+  /**
+   * Stub transport rather than a real relay: the point is the ordering around
+   * the dedupe key, and pointing SMTP at a closed port to force a failure
+   * would make the test slow and dependent on the network being absent.
+   */
+  function flaky(failures: number) {
+    let calls = 0;
+    return {
+      calls: () => calls,
+      transport: {
+        async sendMail() {
+          calls += 1;
+          if (calls <= failures) throw new Error("ECONNREFUSED 127.0.0.1:587");
+          return { messageId: "stub" };
+        },
+      },
+    };
+  }
+
+  afterEach(() => setMailTransport(null));
+
+  it("does not consume the key, so the next attempt goes through", async () => {
+    const stub = flaky(1);
+    setMailTransport(stub.transport as never);
+
+    const first = await sendMail(db, message("retry@example.com", "bill_created:B1:U1"));
+    expect(first).toBe("failed");
+
+    const second = await sendMail(db, message("retry@example.com", "bill_created:B1:U1"));
+    expect(second).toBe("sent");
+
+    // Once overall: the failure delivered nothing, the retry delivered one.
+    expect(stub.calls()).toBe(2);
+    expect(db.select().from(emailLog).all().filter((r) => r.sentAt !== null)).toHaveLength(1);
+  });
+
+  it("still refuses a genuine duplicate after a successful send", async () => {
+    const stub = flaky(0);
+    setMailTransport(stub.transport as never);
+
+    expect(await sendMail(db, message("once@example.com", "bill_created:B2:U1"))).toBe("sent");
+    expect(await sendMail(db, message("once@example.com", "bill_created:B2:U1"))).toBe(
+      "duplicate",
+    );
+
+    expect(stub.calls()).toBe(1);
+  });
+
+  it("keeps the failure readable in the log", async () => {
+    const stub = flaky(1);
+    setMailTransport(stub.transport as never);
+
+    await sendMail(db, message("kept@example.com", "bill_created:B3:U1"));
+
+    // Operators are told to read this table when mail has not arrived, so the
+    // attempt has to survive rather than being deleted.
+    const [row] = db.select().from(emailLog).all();
+    expect(row.error).toMatch(/ECONNREFUSED/);
+    expect(row.sentAt).toBeNull();
+    expect(row.dedupeKey).toContain("bill_created:B3:U1");
+  });
+
+  it("gives up on a message that keeps failing", async () => {
+    const stub = flaky(Number.MAX_SAFE_INTEGER);
+    setMailTransport(stub.transport as never);
+
+    const key = "bill_created:B4:U1";
+    for (let i = 0; i < 5; i++) {
+      expect(await sendMail(db, message("doomed@example.com", key))).toBe("failed");
+    }
+
+    // A relay that is down for a week must not be retried every half hour for
+    // a week.
+    expect(await sendMail(db, message("doomed@example.com", key))).toBe("exhausted");
+    expect(stub.calls()).toBe(5);
+  });
+
+  it("counts attempts per message, not across all of them", async () => {
+    const stub = flaky(Number.MAX_SAFE_INTEGER);
+    setMailTransport(stub.transport as never);
+
+    for (let i = 0; i < 5; i++) {
+      await sendMail(db, message("a@example.com", "bill_created:B5:U1"));
+    }
+
+    expect(await sendMail(db, message("b@example.com", "bill_created:B6:U1"))).toBe("failed");
   });
 });

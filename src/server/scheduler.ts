@@ -1,6 +1,6 @@
 import type { Db } from "@/db/connection";
 import { deleteExpiredSessions } from "@/lib/auth/session";
-import { sendDueReminders } from "./notifications";
+import { retryRecentBillNotices, sendDueReminders } from "./notifications";
 import { generateDueBills } from "./recurring";
 
 /**
@@ -50,7 +50,8 @@ function tick(db: Db) {
   // Reminders are async; the tick itself is not. Nothing waits on the result,
   // and a failure is logged rather than thrown, so a dead mail relay can never
   // stop bills being generated on the next pass.
-  void sendDueReminders(db)
+  void retryRecentBillNotices(db)
+    .then(() => sendDueReminders(db))
     .then((sent) => {
       if (sent.dueSoon + sent.overdue > 0) {
         console.log(`Reminders: ${sent.dueSoon} due soon, ${sent.overdue} overdue`);
