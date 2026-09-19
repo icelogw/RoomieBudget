@@ -47,12 +47,12 @@ total. Allocation order is stable so the same bill splits the same way twice.
 - [x] 1. Scaffold, config, Tailwind, base layout
 - [x] 2. Schema and migrations
 - [x] 3. Money core + split algorithm, with tests
-- [ ] 4. Auth: argon2id, sessions, invites, first-run admin setup
+- [x] 4. Auth: argon2id, sessions, invites, first-run admin setup
 - [ ] 5. Bills: create, split, view, settle
 - [ ] 6. Balances and settle-up
 - [ ] 7. Recurring series and the scheduler
 - [ ] 8. Email delivery and reminder jobs
-- [ ] 9. Mobile and desktop shells
+- [x] 9. Mobile and desktop shells
 - [ ] 10. History, search, CSV export
-- [ ] 11. Dockerfile, compose, TrueNAS deployment notes
+- [~] 11. Dockerfile and compose done; TrueNAS notes outstanding
 - [ ] 12. README and first-run walkthrough
