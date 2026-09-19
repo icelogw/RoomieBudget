@@ -7,13 +7,9 @@ import { invites, users } from "@/db/schema";
 import { PageHeader } from "@/components/app-shell";
 import { Callout } from "@/components/ui";
 import { requireUser } from "@/lib/auth/current-user";
-import { describeDueDate, formatCalendarDate, todayIso } from "@/lib/dates";
-import { formatAud } from "@/lib/money";
-import { describeFrequency } from "@/lib/recurrence";
-import { listSeries } from "@/server/recurring";
+import { formatCalendarDate } from "@/lib/dates";
 import { InviteForm } from "./invite-panel";
 import { MemberRow, PendingInviteRow } from "./household-rows";
-import { SeriesRow } from "./recurring-rows";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +26,6 @@ export default async function HouseholdPage() {
   const db = getDb();
 
   const members = await db.select().from(users).orderBy(asc(users.name));
-
-  // Recurring bills are a household arrangement rather than a personal one,
-  // so they live here alongside who lives here. Anyone can pause or stop one.
-  const series = listSeries(db);
-  const today = todayIso();
 
   // Only admins ever see pending invites — the email addresses of people who
   // have not joined yet are not everyone's business.
@@ -81,52 +72,6 @@ export default async function HouseholdPage() {
             />
           ))}
         </ul>
-      </section>
-
-      <section className="mt-6 overflow-hidden rounded-lg border border-line bg-surface">
-        <h2 className="border-b border-line bg-surface-sunken px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-ink-subtle">
-          Recurring bills
-        </h2>
-
-        {series.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-ink-subtle">
-            Nothing repeats yet. Add a bill and tick{" "}
-            <span className="font-medium text-ink-muted">This bill repeats</span> to set one
-            up.
-          </p>
-        ) : (
-          <ul>
-            {series.map((item) => {
-              const amount =
-                item.amountMode === "prompt"
-                  ? "amount varies"
-                  : formatAud(item.totalCents ?? 0);
-
-              const people =
-                item.participantNames.length > 2
-                  ? `${item.participantNames.length} people`
-                  : item.participantNames.join(" and ");
-
-              return (
-                <SeriesRow
-                  key={item.id}
-                  item={{
-                    id: item.id,
-                    description: item.description,
-                    detail: `${describeFrequency(item.frequency)} · ${amount} · ${people} · paid by ${item.paidByName}`,
-                    nextLabel: item.isActive
-                      ? `Next on ${formatCalendarDate(item.nextIssueOn)} — ${describeDueDate(
-                          item.nextIssueOn,
-                          today,
-                        ).replace(/^Due /, "")}`
-                      : "Paused — nothing will be issued",
-                    isActive: item.isActive,
-                  }}
-                />
-              );
-            })}
-          </ul>
-        )}
       </section>
 
       {isAdmin && (

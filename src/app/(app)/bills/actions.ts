@@ -335,7 +335,6 @@ async function addRecurring(
   generateDueBills(getDb());
 
   revalidatePath("/");
-  revalidatePath("/household");
   revalidatePath("/balances");
   redirect("/");
 }

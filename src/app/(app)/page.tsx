@@ -8,7 +8,10 @@ import { Callout } from "@/components/ui";
 import { requireUser } from "@/lib/auth/current-user";
 import { describeDueDate, formatCalendarDate, todayIso } from "@/lib/dates";
 import { formatAud } from "@/lib/money";
+import { describeFrequency } from "@/lib/recurrence";
 import { listBills, type BillDetail } from "@/server/bills";
+import { listSeries } from "@/server/recurring";
+import { SeriesRow } from "./bills/recurring-rows";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +51,9 @@ function StatusPill({ bill, today }: { bill: BillDetail; today: string }) {
 export default async function BillsPage() {
   const user = await requireUser();
   const today = todayIso();
-  const bills = listBills(getDb());
+  const db = getDb();
+  const bills = listBills(db);
+  const series = listSeries(db);
 
   const yourOutstanding = bills
     .flatMap((b) => b.shares)
@@ -101,7 +106,14 @@ export default async function BillsPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink">{bill.description}</p>
+                      <p className="flex items-center gap-1.5 text-sm font-medium text-ink">
+                        <span className="truncate">{bill.description}</span>
+                        {bill.seriesId && (
+                          <span className="shrink-0 rounded border border-line-strong px-1.5 py-px text-2xs font-normal text-ink-subtle">
+                            Repeating
+                          </span>
+                        )}
+                      </p>
                       <p className="mt-0.5 text-xs text-ink-subtle">
                         {formatCalendarDate(bill.issuedOn)}
                         {bill.category && ` · ${bill.category}`}
@@ -143,6 +155,50 @@ export default async function BillsPage() {
           })}
         </ul>
       )}
+
+      <section className="mt-8 overflow-hidden rounded-lg border border-line bg-surface">
+        <h2 className="border-b border-line bg-surface-sunken px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-ink-subtle">
+          Recurring
+        </h2>
+
+        {series.length === 0 ? (
+          <p className="px-4 py-3 text-sm text-ink-subtle">
+            Nothing repeats yet. Tick{" "}
+            <span className="font-medium text-ink-muted">This bill repeats</span> when adding
+            a bill to set one up.
+          </p>
+        ) : (
+          <ul>
+            {series.map((item) => {
+              const amount =
+                item.amountMode === "prompt" ? "amount varies" : formatAud(item.totalCents ?? 0);
+
+              const people =
+                item.participantNames.length > 2
+                  ? `${item.participantNames.length} people`
+                  : item.participantNames.join(" and ");
+
+              return (
+                <SeriesRow
+                  key={item.id}
+                  item={{
+                    id: item.id,
+                    description: item.description,
+                    detail: `${describeFrequency(item.frequency)} · ${amount} · ${people} · paid by ${item.paidByName}`,
+                    nextLabel: item.isActive
+                      ? `Next on ${formatCalendarDate(item.nextIssueOn)} — ${describeDueDate(
+                          item.nextIssueOn,
+                          today,
+                        ).replace(/^Due /, "")}`
+                      : "Paused — nothing will be issued",
+                    isActive: item.isActive,
+                  }}
+                />
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </>
   );
 }
