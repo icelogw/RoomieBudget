@@ -18,7 +18,7 @@ export type SettingsState = FormState & { notice?: string };
 
 /** Settings change what everyone sees, so they are an admin's to change. */
 function refresh() {
-  revalidatePath("/household/settings");
+  revalidatePath("/household");
   // The dropdown on the bill form comes from this list.
   revalidatePath("/bills/new");
 }

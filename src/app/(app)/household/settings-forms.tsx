@@ -12,7 +12,7 @@ import {
   renameHousehold,
   reorderCategory,
   type SettingsState,
-} from "./actions";
+} from "./settings-actions";
 
 const INITIAL: SettingsState = {};
 

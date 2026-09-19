@@ -1,5 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
 
+import { ChevronDownIcon } from "./icons";
+
 /**
  * The shared vocabulary every screen is built from. Deliberately small: four
  * button variants, one field, one callout. Components take semantic tokens
@@ -98,6 +100,44 @@ export function Callout({
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * A collapsible panel.
+ *
+ * Built on <details> rather than state: it opens and closes with no
+ * JavaScript, is keyboard operable for free, and the browser handles find-in-
+ * page opening it. The chevron is the only thing that needs styling.
+ */
+export function Disclosure({
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details
+      open={defaultOpen}
+      className="group overflow-hidden rounded-lg border border-line bg-surface"
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-surface-sunken [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-ink">{title}</span>
+          {description && (
+            <span className="mt-0.5 block text-xs text-ink-subtle">{description}</span>
+          )}
+        </span>
+        <ChevronDownIcon className="h-5 w-5 shrink-0 text-ink-subtle transition-transform group-open:rotate-180" />
+      </summary>
+
+      <div className="border-t border-line p-4">{children}</div>
+    </details>
   );
 }
 
