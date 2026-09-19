@@ -6,7 +6,7 @@ import { signOut } from "@/lib/auth/actions";
 import type { AuthenticatedUser } from "@/lib/auth/session";
 import { getDevice } from "@/lib/device";
 import { householdName } from "@/server/household";
-import { SidebarNav, TabBar } from "./nav";
+import { AccountChip, AccountLink, SidebarNav, TabBar } from "./nav";
 
 /**
  * Two genuinely different layouts rather than one that reflows.
@@ -51,7 +51,7 @@ function MobileShell({
       <header className="sticky top-0 z-10 border-b border-line bg-paper/85 px-4 py-3 backdrop-blur">
         <div className="flex items-baseline justify-between gap-3">
           <p className="truncate text-sm font-semibold tracking-tight text-ink">{name}</p>
-          <p className="truncate text-xs text-ink-subtle">{user.name}</p>
+          <AccountChip name={user.name} />
         </div>
       </header>
 
@@ -85,9 +85,8 @@ function DesktopShell({
         </div>
 
         <div className="border-t border-line pt-3">
-          <p className="truncate px-2.5 text-sm font-medium text-ink">{user.name}</p>
-          <p className="truncate px-2.5 text-xs text-ink-subtle">{user.email}</p>
-          <form action={signOut} className="mt-2">
+          <AccountLink name={user.name} email={user.email} />
+          <form action={signOut} className="mt-1">
             <button
               type="submit"
               className="w-full rounded-md px-2.5 py-1.5 text-left text-sm text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"

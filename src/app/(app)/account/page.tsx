@@ -61,13 +61,14 @@ export default async function AccountPage() {
         <PasswordForm />
       </Section>
 
-      <Section title="Sign out">
-        <form action={signOut}>
-          <Button variant="secondary" type="submit">
-            Sign out
-          </Button>
-        </form>
-      </Section>
+      {/* No card and no heading: the button says what it is, and a section
+          titled "Sign out" containing a button labelled "Sign out" says it
+          twice. */}
+      <form action={signOut} className="mt-6">
+        <Button variant="secondary" type="submit">
+          Sign out
+        </Button>
+      </form>
     </>
   );
 }

@@ -11,6 +11,7 @@ import {
   editCategory,
   renameHousehold,
   reorderCategory,
+  sendTestEmail,
   type SettingsState,
 } from "./settings-actions";
 
@@ -179,5 +180,22 @@ export function CategoryRow({
         </div>
       )}
     </li>
+  );
+}
+
+export function TestEmailForm({ to }: { to: string }) {
+  const [state, action, pending] = useActionState(sendTestEmail, INITIAL);
+
+  return (
+    <div className="space-y-3">
+      {state.notice && <Callout tone="ok">{state.notice}</Callout>}
+      {state.message && <Callout tone="danger">{state.message}</Callout>}
+
+      <form action={action}>
+        <Button type="submit" variant="secondary" disabled={pending}>
+          {pending ? "Sending…" : `Send a test to ${to}`}
+        </Button>
+      </form>
+    </div>
   );
 }

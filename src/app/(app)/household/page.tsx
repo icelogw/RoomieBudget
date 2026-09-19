@@ -6,11 +6,17 @@ import { invites, users } from "@/db/schema";
 import { PageHeader } from "@/components/app-shell";
 import { Callout, Disclosure } from "@/components/ui";
 import { requireUser } from "@/lib/auth/current-user";
+import { getEnv, isMailEnabled } from "@/lib/env";
 import { householdName, listCategories } from "@/server/household";
 import { formatCalendarDate } from "@/lib/dates";
 import { InviteForm } from "./invite-panel";
 import { MemberRow, PendingInviteRow } from "./household-rows";
-import { AddCategoryForm, CategoryRow, HouseholdNameForm } from "./settings-forms";
+import {
+  AddCategoryForm,
+  CategoryRow,
+  HouseholdNameForm,
+  TestEmailForm,
+} from "./settings-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +138,31 @@ export default async function HouseholdPage() {
                   )}
 
                   <AddCategoryForm />
+                </div>
+
+                <div className="border-t border-line pt-5">
+                  <h3 className="text-sm font-semibold text-ink">Email</h3>
+
+                  {isMailEnabled() ? (
+                    <>
+                      <dl className="mb-3 mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+                        <dt className="text-ink-subtle">Relay</dt>
+                        <dd className="truncate text-ink-muted">
+                          {getEnv().SMTP_HOST}:{getEnv().SMTP_PORT}
+                          {getEnv().SMTP_SECURE ? " (TLS)" : ""}
+                        </dd>
+                        <dt className="text-ink-subtle">From</dt>
+                        <dd className="truncate text-ink-muted">{getEnv().MAIL_FROM}</dd>
+                      </dl>
+                      <TestEmailForm to={user.email} />
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed text-ink-subtle">
+                      No mail server is configured, so nothing is sent. Bills, reminders and
+                      invites all still work — invite links are shown on screen instead. Set
+                      SMTP_HOST to turn email on.
+                    </p>
+                  )}
                 </div>
               </div>
             </Disclosure>

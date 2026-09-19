@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 
-import { HouseIcon, PersonIcon, ReceiptIcon, ScalesIcon } from "./icons";
+import { HouseIcon, ReceiptIcon, ScalesIcon } from "./icons";
 
 export type NavItem = {
   href: string;
@@ -16,7 +16,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Bills", Icon: ReceiptIcon },
   { href: "/balances", label: "Balances", Icon: ScalesIcon },
   { href: "/household", label: "Household", Icon: HouseIcon },
-  { href: "/account", label: "Account", Icon: PersonIcon },
 ];
 
 /** "/" must match exactly, or it would light up on every page. */
@@ -65,11 +64,11 @@ export function TabBar() {
       // Keeps the bar clear of the iPhone home indicator.
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-4">
+      <ul className="flex">
         {NAV_ITEMS.map(({ href, label, Icon }) => {
           const active = isActive(pathname, href);
           return (
-            <li key={href}>
+            <li key={href} className="flex-1">
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
@@ -87,5 +86,56 @@ export function TabBar() {
         })}
       </ul>
     </nav>
+  );
+}
+
+/**
+ * The signed-in person's own block, which doubles as the way into Account.
+ *
+ * Kept out of the main navigation: it is the one destination people already
+ * expect to find behind their own name, and leaving it there keeps the phone
+ * tab bar to three items.
+ */
+export function AccountLink({ name, email }: { name: string; email: string }) {
+  const pathname = usePathname();
+  const active = pathname.startsWith("/account");
+
+  return (
+    <Link
+      href="/account"
+      aria-current={active ? "page" : undefined}
+      className={
+        "block rounded-md px-2.5 py-1.5 transition-colors " +
+        (active ? "bg-accent-soft" : "hover:bg-surface-sunken")
+      }
+    >
+      <span
+        className={
+          "block truncate text-sm font-medium " + (active ? "text-accent" : "text-ink")
+        }
+      >
+        {name}
+      </span>
+      <span className="block truncate text-xs text-ink-subtle">{email}</span>
+    </Link>
+  );
+}
+
+/** The same destination from a phone, where there is only room for a name. */
+export function AccountChip({ name }: { name: string }) {
+  const pathname = usePathname();
+  const active = pathname.startsWith("/account");
+
+  return (
+    <Link
+      href="/account"
+      aria-current={active ? "page" : undefined}
+      className={
+        "shrink-0 truncate rounded-md px-2 py-1 text-xs transition-colors " +
+        (active ? "bg-accent-soft font-medium text-accent" : "text-ink-subtle")
+      }
+    >
+      {name}
+    </Link>
   );
 }
