@@ -9,6 +9,7 @@ import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { setSessionCookie } from "@/lib/auth/cookies";
 import { fakeVerify, verifyPassword } from "@/lib/auth/password";
+import { clientSource } from "@/lib/auth/client-source";
 import { checkLoginAttempt, clearAttempts, recordFailedAttempt } from "@/lib/auth/rate-limit";
 import { createSession } from "@/lib/auth/session";
 import { fieldErrorsFrom, type FormState } from "@/lib/forms";
@@ -48,8 +49,9 @@ export async function signIn(_previous: LoginState, formData: FormData): Promise
   }
 
   const email = parsed.data.email.toLowerCase();
+  const attempt = { account: email, source: await clientSource() };
 
-  const throttle = checkLoginAttempt(email);
+  const throttle = checkLoginAttempt(attempt);
   if (!throttle.allowed) {
     return {
       message:
@@ -66,7 +68,7 @@ export async function signIn(_previous: LoginState, formData: FormData): Promise
     // Burn comparable time so a missing account does not answer faster than a
     // wrong password.
     await fakeVerify();
-    recordFailedAttempt(email);
+    recordFailedAttempt(attempt);
     return { message: GENERIC_FAILURE, email: submittedEmail };
   }
 
@@ -75,11 +77,11 @@ export async function signIn(_previous: LoginState, formData: FormData): Promise
   // A deactivated housemate is told the same thing as a wrong password: they
   // have no route back in, and the distinction would only invite argument.
   if (!passwordMatches || !user.isActive) {
-    recordFailedAttempt(email);
+    recordFailedAttempt(attempt);
     return { message: GENERIC_FAILURE, email: submittedEmail };
   }
 
-  clearAttempts(email);
+  clearAttempts(attempt);
 
   const userAgent = (await headers()).get("user-agent") ?? undefined;
   const session = createSession(db, user.id, userAgent);

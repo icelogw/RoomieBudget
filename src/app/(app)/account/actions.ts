@@ -9,7 +9,13 @@ import { getDb } from "@/db";
 import { auditLog, users } from "@/db/schema";
 import { setSessionCookie } from "@/lib/auth/cookies";
 import { requireUser } from "@/lib/auth/current-user";
+import { clientSource } from "@/lib/auth/client-source";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import {
+  checkLoginAttempt,
+  clearAttempts,
+  recordFailedAttempt,
+} from "@/lib/auth/rate-limit";
 import { createSession, invalidateAllSessionsForUser } from "@/lib/auth/session";
 import { fieldErrorsFrom, type FormState } from "@/lib/forms";
 import { newId } from "@/lib/ids";
@@ -97,8 +103,26 @@ export async function changePassword(
 
   if (!parsed.success) return { fieldErrors: fieldErrorsFrom(parsed.error) };
 
+  // The same ceiling as signing in. This form verifies the current password,
+  // so leaving it unthrottled would make it the cheaper way to guess one.
+  const attempt = { account: user.email, source: await clientSource() };
+
+  const throttle = checkLoginAttempt(attempt);
+  if (!throttle.allowed) {
+    return {
+      message:
+        `Too many attempts. Try again in ${throttle.retryAfterMinutes} ` +
+        `minute${throttle.retryAfterMinutes === 1 ? "" : "s"}.`,
+    };
+  }
+
   const correct = await verifyPassword(user.passwordHash, parsed.data.current);
-  if (!correct) return { fieldErrors: { current: "That is not your current password" } };
+  if (!correct) {
+    recordFailedAttempt(attempt);
+    return { fieldErrors: { current: "That is not your current password" } };
+  }
+
+  clearAttempts(attempt);
 
   const db = getDb();
   const passwordHash = await hashPassword(parsed.data.next);
